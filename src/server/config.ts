@@ -12,6 +12,9 @@ export interface Config {
   ownerBootstrap?: { username: string; password: string };
 }
 
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;         // 15 minutes
+
 const envSchema = z.object({
   DATA_DIR: z.string().optional(),
   SESSION_SECRET: z.string().min(1).optional(),
@@ -40,9 +43,9 @@ export function loadConfig(env: NodeJS.ProcessEnv, demoDir: string): Config {
     sessionSecret: e.SESSION_SECRET ?? 'demo-ephemeral-secret',
     usersPath: e.USERS_PATH ?? './var/users.json',
     port: e.PORT ?? 8080,
-    cookieSecure: e.COOKIE_SECURE ? e.COOKIE_SECURE !== 'false' : true,
-    sessionTtlMs: 7 * 24 * 60 * 60 * 1000,
-    login: { windowMs: 15 * 60 * 1000, max: 10 },
+    cookieSecure: e.COOKIE_SECURE?.toLowerCase() !== 'false',
+    sessionTtlMs: SESSION_TTL_MS,
+    login: { windowMs: LOGIN_WINDOW_MS, max: 10 },
     ownerBootstrap:
       e.OWNER_USERNAME && e.OWNER_PASSWORD
         ? { username: e.OWNER_USERNAME, password: e.OWNER_PASSWORD }

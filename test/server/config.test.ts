@@ -23,8 +23,14 @@ describe('loadConfig', () => {
     expect(c.ownerBootstrap).toEqual({ username: 'cap', password: 'pw' });
   });
 
-  it('defaults cookieSecure true but honors COOKIE_SECURE=false', () => {
+  it('leaves owner-bootstrap undefined when only one credential is present', () => {
+    const c = loadConfig({ DATA_DIR: '/data', SESSION_SECRET: 's', OWNER_USERNAME: 'cap' }, DEMO);
+    expect(c.ownerBootstrap).toBeUndefined();
+  });
+
+  it('defaults cookieSecure true but honors COOKIE_SECURE=false (case-insensitive)', () => {
     expect(loadConfig({ DATA_DIR: '/d', SESSION_SECRET: 's' }, DEMO).cookieSecure).toBe(true);
     expect(loadConfig({ DATA_DIR: '/d', SESSION_SECRET: 's', COOKIE_SECURE: 'false' }, DEMO).cookieSecure).toBe(false);
+    expect(loadConfig({ DATA_DIR: '/d', SESSION_SECRET: 's', COOKIE_SECURE: 'FALSE' }, DEMO).cookieSecure).toBe(false);
   });
 });
