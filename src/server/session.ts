@@ -51,6 +51,7 @@ export function verifyToken(
   ) {
     return null;
   }
-  if (now.getTime() - parsed.iat > ttlMs) return null;
+  if (parsed.iat > now.getTime()) return null;          // reject future-dated tokens (clock skew)
+  if (now.getTime() - parsed.iat > ttlMs) return null;  // expired
   return { username: parsed.u, role: parsed.r };
 }

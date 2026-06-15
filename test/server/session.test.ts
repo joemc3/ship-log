@@ -11,6 +11,17 @@ describe('session token', () => {
     expect(verifyToken(token, SECRET, now, TTL)).toEqual({ username: 'cap', role: 'owner' });
   });
 
+  it('round-trips a crew session', () => {
+    const token = createToken({ username: 'hand', role: 'crew' }, SECRET, now);
+    expect(verifyToken(token, SECRET, now, TTL)).toEqual({ username: 'hand', role: 'crew' });
+  });
+
+  it('rejects a future-dated token (clock skew)', () => {
+    const future = new Date(now.getTime() + 1000 * 60);
+    const token = createToken({ username: 'cap', role: 'owner' }, SECRET, future);
+    expect(verifyToken(token, SECRET, now, TTL)).toBeNull();
+  });
+
   it('rejects a token signed with a different secret', () => {
     const token = createToken({ username: 'cap', role: 'owner' }, SECRET, now);
     expect(verifyToken(token, 'other-secret', now, TTL)).toBeNull();
