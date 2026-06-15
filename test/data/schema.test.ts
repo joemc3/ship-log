@@ -87,6 +87,24 @@ describe('inventorySchema', () => {
   });
 });
 
+describe('ISO-date refinement', () => {
+  it('rejects a non-ISO trip date', () => {
+    expect(() => tripSchema.parse({ id: 't-2024-07-01', date: 'July 1 2024' })).toThrow();
+  });
+
+  it('rejects a non-ISO maintenance due date', () => {
+    expect(() => maintenanceSchema.parse({ id: 'm-x', title: 'X', status: 'due', due: '2024/06/30' })).toThrow();
+  });
+
+  it('rejects a non-ISO inventory expiry', () => {
+    expect(() => inventorySchema.parse({ id: 'inv-x', name: 'Flares', expires: 'soon' })).toThrow();
+  });
+
+  it('still accepts valid ISO dates and a null completed', () => {
+    expect(() => maintenanceSchema.parse({ id: 'm-x', title: 'X', status: 'done', opened: '2024-06-22', due: '2024-06-30', completed: null })).not.toThrow();
+  });
+});
+
 describe('manual/quickref/boat schemas', () => {
   it('accepts a manual with sections and a file ref', () => {
     const man = { id: 'man-engine', title: 'Universal M-25 Manual', kind: 'engine', file: 'manuals/m25.pdf', sections: [{ title: 'Winterizing', anchor: 'winterize' }] };
