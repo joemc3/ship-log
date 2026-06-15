@@ -14,9 +14,9 @@ export function registerAdminRoutes(app: Express, ctx: AppContext): void {
 
   app.post('/api/users', requireOwner, async (req, res) => {
     const { username, password, role } = req.body ?? {};
-    if (typeof username !== 'string' || username.length < 1 ||
+    if (typeof username !== 'string' || username.trim().length < 1 || username.length > 64 ||
         typeof password !== 'string' || password.length < 8 || !validRole(role)) {
-      res.status(400).json({ error: 'username, password (min 8 chars), role (owner|crew) required' });
+      res.status(400).json({ error: 'username (1-64 chars, not blank), password (min 8 chars), role (owner|crew) required' });
       return;
     }
     try {
@@ -32,9 +32,18 @@ export function registerAdminRoutes(app: Express, ctx: AppContext): void {
     const target = req.params.username as string;
     if (!users.get(target)) { res.status(404).json({ error: 'no such user' }); return; }
     const { role, password } = req.body ?? {};
+    if (role === undefined && password === undefined) {
+      // Nothing to do — reject so a client typo (e.g. `{ rol: 'crew' }`) doesn't
+      // silently succeed as a no-op 204.
+      res.status(400).json({ error: 'provide role and/or password' });
+      return;
+    }
     try {
       if (role !== undefined) {
         if (!validRole(role)) { res.status(400).json({ error: 'role must be owner|crew' }); return; }
+        // NOTE: changing a role does NOT revoke an existing session cookie. The
+        // new role takes effect on the user's next login or when their current
+        // session TTL expires.
         await users.setRole(target, role);
       }
       if (password !== undefined) {
