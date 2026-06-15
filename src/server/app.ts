@@ -1,4 +1,4 @@
-import express, { type Express } from 'express';
+import express, { type Express, type ErrorRequestHandler } from 'express';
 import cookieParser from 'cookie-parser';
 import type { Dataset } from '../data/index.js';
 import type { Config } from './config.js';
@@ -21,11 +21,22 @@ export function createApp(deps: Omit<AppContext, 'now'> & { now?: () => Date }):
   const ctx: AppContext = { ...deps, now: deps.now ?? (() => new Date()) };
   const app = express();
   app.disable('x-powered-by');
+  app.use((_req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); next(); });
   app.use(express.json());
   app.use(cookieParser());
   app.use(attachRole(ctx.config, ctx.now));
   registerAuthRoutes(app, ctx);
   registerDataRoutes(app, ctx);
   registerAdminRoutes(app, ctx);
+
+  // Global JSON error handler (must be registered last). Keeps responses JSON even
+  // on a malformed body or an unexpected throw; never leaks a stack trace.
+  const jsonErrorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+    const status = typeof (err as { status?: unknown })?.status === 'number'
+      ? (err as { status: number }).status
+      : 500;
+    res.status(status).json({ error: status >= 400 && status < 500 ? 'invalid request' : 'internal error' });
+  };
+  app.use(jsonErrorHandler);
   return app;
 }
