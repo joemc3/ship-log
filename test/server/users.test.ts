@@ -41,6 +41,15 @@ describe('UsersStore', () => {
     expect(JSON.stringify(store.list())).not.toMatch(/argon2|\$/);
   });
 
+  it('get() returns a hash-free public user, or undefined when absent', async () => {
+    const store = await UsersStore.load(path);
+    await store.add('cap', 'ownerpass123', 'owner');
+    const found = store.get('cap');
+    expect(found).toEqual({ username: 'cap', role: 'owner' });
+    expect(JSON.stringify(found)).not.toMatch(/argon2|\$/);
+    expect(store.get('ghost')).toBeUndefined();
+  });
+
   it('changePassword requires the correct current password', async () => {
     const store = await UsersStore.load(path);
     await store.add('cap', 'ownerpass123', 'owner');

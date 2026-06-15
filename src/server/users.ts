@@ -30,6 +30,8 @@ export class UsersStore {
   }
 
   private async persist(): Promise<void> {
+    // Full-overwrite write. The server is the single serialized writer (see spec),
+    // so we don't need temp-file+rename atomicity at this scale.
     await mkdir(dirname(this.path), { recursive: true });
     await writeFile(this.path, JSON.stringify([...this.users.values()], null, 2));
   }
@@ -37,7 +39,11 @@ export class UsersStore {
   isEmpty(): boolean { return this.users.size === 0; }
   ownerCount(): number { return [...this.users.values()].filter((u) => u.role === 'owner').length; }
   list(): PublicUser[] { return [...this.users.values()].map(({ username, role }) => ({ username, role })); }
-  get(username: string): UserRecord | undefined { return this.users.get(username); }
+  /** Public lookup by username (no hash). Returns undefined if absent. */
+  get(username: string): PublicUser | undefined {
+    const u = this.users.get(username);
+    return u ? { username: u.username, role: u.role } : undefined;
+  }
 
   async verify(username: string, password: string): Promise<PublicUser | null> {
     const u = this.users.get(username);
