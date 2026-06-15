@@ -4,7 +4,9 @@ import { MONETARY_FIELDS, OWNER_ONLY_COLLECTIONS } from '../data/index.js';
 export type Role = 'owner' | 'crew' | 'guest';
 
 // Map a monetary-registry collection key (singular) to its Dataset array property.
-const DATASET_KEY: Record<string, keyof Dataset> = {
+// All values are array-typed Dataset keys; `boat` and `quickref` are intentionally
+// absent (not record collections). This is why the `as Array<...>` cast below is sound.
+export const DATASET_KEY: Record<string, keyof Dataset> = {
   trip: 'trips',
   maintenance: 'maintenance',
   cost: 'costs',
@@ -18,6 +20,9 @@ const DATASET_KEY: Record<string, keyof Dataset> = {
  * crew/guest get a deep copy with owner-only collections emptied and every
  * monetary field stripped — so the value never reaches a response, the search
  * haystack, or a derived rollup. Authoritative source: src/data/monetary.ts.
+ *
+ * Monetary fields are assumed to be top-level scalars on each record; a future
+ * nested cost object would require a recursive strip.
  */
 export function redactDataset(ds: Dataset, role: Role): Dataset {
   if (role === 'owner') return ds;

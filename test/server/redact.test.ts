@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { loadDataset } from '../../src/data/index.js';
-import { redactDataset } from '../../src/server/redact.js';
+import { loadDataset, MONETARY_FIELDS, OWNER_ONLY_COLLECTIONS } from '../../src/data/index.js';
+import { redactDataset, DATASET_KEY } from '../../src/server/redact.js';
 
 const DEMO = resolve(dirname(fileURLToPath(import.meta.url)), '../../demo');
 
@@ -31,5 +31,17 @@ describe('redactDataset', () => {
     redactDataset(ds, 'crew');
     expect(ds.costs.length).toBeGreaterThan(0);
     expect(ds.maintenance.some((m) => 'costEst' in m)).toBe(true);
+  });
+
+  it('every MONETARY_FIELDS key has a DATASET_KEY mapping', () => {
+    for (const collection of Object.keys(MONETARY_FIELDS)) {
+      expect(DATASET_KEY[collection], `MONETARY_FIELDS["${collection}"] has no DATASET_KEY entry`).toBeDefined();
+    }
+  });
+
+  it('every OWNER_ONLY_COLLECTIONS entry has a DATASET_KEY mapping', () => {
+    for (const collection of OWNER_ONLY_COLLECTIONS) {
+      expect(DATASET_KEY[collection], `OWNER_ONLY_COLLECTIONS["${collection}"] has no DATASET_KEY entry`).toBeDefined();
+    }
   });
 });
