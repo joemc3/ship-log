@@ -18,7 +18,17 @@ describe('demo mode', () => {
 
   it('disables login in demo mode', async () => {
     const { app } = await buildTestApp({ demo: true });
-    await request(app).post('/api/login').send({ username: 'x', password: 'y' }).expect(400);
+    const res = await request(app).post('/api/login').send({ username: 'x', password: 'y' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/demo/i);
+  });
+
+  it('disables admin writes in demo mode', async () => {
+    const { app } = await buildTestApp({ demo: true });
+    await request(app)
+      .post('/api/users')
+      .send({ username: 'x', password: 'y'.repeat(8), role: 'crew' })
+      .expect(403);
   });
 
   it('returns JSON, not HTML, on a malformed request body', async () => {
@@ -28,6 +38,14 @@ describe('demo mode', () => {
       .set('Content-Type', 'application/json')
       .send('{ not valid json');
     expect(res.status).toBe(400);
+    expect(res.headers['content-type']).toMatch(/application\/json/);
+    expect(res.body.error).toBeTruthy();
+  });
+
+  it('returns a JSON 404 on an unmatched route', async () => {
+    const { app } = await buildTestApp();
+    const res = await request(app).get('/api/nope');
+    expect(res.status).toBe(404);
     expect(res.headers['content-type']).toMatch(/application\/json/);
     expect(res.body.error).toBeTruthy();
   });

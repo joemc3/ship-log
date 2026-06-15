@@ -57,3 +57,11 @@ export function loginLimiter(config: Config): RequestHandler {
     legacyHeaders: false,
   });
 }
+
+/** Block mutating routes in demo mode (demo is read-only). */
+export function denyInDemo(config: Config): RequestHandler {
+  return (_req, res, next) => {
+    if (config.demo) { res.status(403).json({ error: 'disabled in demo mode' }); return; }
+    next();
+  };
+}

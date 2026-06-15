@@ -20,9 +20,10 @@ async function main(): Promise<void> {
     console.warn('No owner configured: the gated area is locked until OWNER_USERNAME/OWNER_PASSWORD seed one.');
   }
 
-  createApp({ config, dataset, users }).listen(config.port, () => {
+  const server = createApp({ config, dataset, users }).listen(config.port, () => {
     console.log(`Ship's Log server listening on :${config.port}${config.demo ? ' (DEMO MODE)' : ''}`);
   });
+  server.on('error', (err) => { console.error(err); process.exit(1); });
 }
 
 main().catch((err) => { console.error(err); process.exit(1); });
