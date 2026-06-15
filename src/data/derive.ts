@@ -12,10 +12,10 @@ export interface InventoryTask {
 }
 
 function classify(dateStr: string, now: Date): TaskStatus | null {
-  // A malformed dateStr yields Invalid Date -> NaN comparisons -> null (no task):
-  // a bad date is silently ignored rather than throwing. Acceptable because
-  // loadDataset validates records on load; tighten with an ISO-date schema
-  // constraint if non-ISO dates ever reach this point.
+  // A malformed dateStr would yield Invalid Date -> NaN comparisons -> null (no
+  // task), silently dropping it. In practice the schema-level `isoDate` guards
+  // both ISO format and calendar validity at load (see schema.ts), so this path
+  // only ever sees valid dates; the NaN guard is belt-and-suspenders.
   const date = new Date(`${dateStr}T00:00:00Z`);
   const msPerDay = 86_400_000;
   const days = Math.floor((date.getTime() - now.getTime()) / msPerDay);

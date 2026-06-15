@@ -1,9 +1,16 @@
 import { z } from 'zod';
 
-/** A bare ISO calendar date, `YYYY-MM-DD`. Frontmatter keeps these as strings
- *  (see record.ts); this guards the *format* so derived tasks never silently
- *  drop a malformed date. */
-export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be an ISO date (YYYY-MM-DD)');
+/** A bare ISO calendar date, `YYYY-MM-DD`, that must be a real calendar date.
+ *  Frontmatter keeps these as strings (see record.ts); this guards both the
+ *  *format* and calendar *validity* so derived tasks never silently drop a
+ *  malformed date (e.g. 2024-13-01 would otherwise become an Invalid Date). */
+export const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be an ISO date (YYYY-MM-DD)')
+  .refine((s) => {
+    const d = new Date(`${s}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+  }, 'must be a real calendar date');
 
 export const waypointSchema = z.object({
   name: z.string(),
@@ -85,9 +92,9 @@ export const inventorySchema = z.object({
   count: z.number().optional(),
   level: z.string().optional(),
   condition: z.string().optional(),
-  inspect: isoDate.optional(),  // next inspection due (ISO date)
-  service: isoDate.optional(),  // next service due (ISO date)
-  expires: isoDate.optional(),  // expiry date (ISO date)
+  inspect: isoDate.optional(),  // next inspection due
+  service: isoDate.optional(),  // next service due
+  expires: isoDate.optional(),  // expiry date
   photos: z.array(z.string()).optional(),
 });
 export type Inventory = z.infer<typeof inventorySchema>;

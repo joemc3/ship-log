@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tripSchema, maintenanceSchema, costSchema, vendorSchema, inventorySchema, manualSchema, quickrefSchema, boatSchema } from '../../src/data/schema.js';
+import { isoDate, tripSchema, maintenanceSchema, costSchema, vendorSchema, inventorySchema, manualSchema, quickrefSchema, boatSchema } from '../../src/data/schema.js';
 
 describe('tripSchema', () => {
   it('accepts a fully populated trip', () => {
@@ -84,6 +84,24 @@ describe('inventorySchema', () => {
 
   it('accepts a partial item (id + name only)', () => {
     expect(() => inventorySchema.parse({ id: 'inv-x', name: 'Spare shackles' })).not.toThrow();
+  });
+});
+
+describe('isoDate', () => {
+  it('accepts a real calendar date', () => {
+    expect(() => isoDate.parse('2024-06-30')).not.toThrow();
+  });
+
+  it('rejects an impossible month (2024-13-01)', () => {
+    expect(() => isoDate.parse('2024-13-01')).toThrow();
+  });
+
+  it('rejects an impossible day (2024-06-32)', () => {
+    expect(() => isoDate.parse('2024-06-32')).toThrow();
+  });
+
+  it('rejects a datetime string (2024-06-30T00:00:00Z)', () => {
+    expect(() => isoDate.parse('2024-06-30T00:00:00Z')).toThrow();
   });
 });
 
