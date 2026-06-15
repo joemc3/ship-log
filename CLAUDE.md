@@ -29,6 +29,30 @@ of finishing any change, before claiming it done.
 
 Cost/monetary data is visible to `owner` only. It MUST be redacted **server-side**
 for `crew`/`guest`, never just hidden in the UI. The set of monetary fields lives
-in `src/data/monetary.ts` (`MONETARY_FIELDS`, `OWNER_ONLY_COLLECTIONS`); keep it in
-sync with the schemas (a test enforces this). When you add a cost-bearing field,
-add it to that registry in the same change.
+in `src/data/monetary.ts` (`MONETARY_FIELDS`, `OWNER_ONLY_COLLECTIONS`) and is
+enforced at the response boundary by `src/server/redact.ts` (`redactDataset`),
+guarded by the `redaction-golden` test; keep it in sync with the schemas (a test
+enforces this). When you add a cost-bearing field, add it to that registry in the
+same change.
+
+## Server layer (P1b)
+
+- `src/server/` is the read API: one responsibility per file; it imports the data
+  layer **only** from `src/data/index.ts`. The app is a `createApp(deps)` factory
+  with injected `{config, dataset, users, now}` — tests drive it via `supertest`
+  in-process; `now` is injected so derived views stay deterministic.
+- Auth: argon2id password hashing (`@node-rs/argon2`) + stateless HMAC-signed
+  HTTP-only session cookies (`SESSION_SECRET`). The users store (`users.json`) is
+  deployment state in a VPS volume — **never** committed to the data repo.
+- **Redaction is enforced server-side by `src/server/redact.ts`** via
+  `redactDataset(ds, role)`, driven by the `monetary.ts` registry (NOT the schema
+  name-heuristic). Every read/search/derive route serves the role-scoped view, so
+  monetary values never reach a crew/guest response or the search haystack. The
+  `redaction-golden` test deep-walks every non-owner response and asserts no
+  monetary key (and no owner-only record) ever appears — keep it passing; never
+  weaken it.
+- Demo mode (no `DATA_DIR`): every request is owner-equivalent and read-only,
+  flagged via `GET /api/me`; login/writes are disabled.
+- Transport-level hardening (HSTS, CSP) is deferred to P2 (VPS deployment behind
+  the Pangolin tunnel); the app sets `X-Content-Type-Options: nosniff` and disables
+  `X-Powered-By`, and returns JSON (not HTML) on errors.
