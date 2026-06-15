@@ -5,6 +5,7 @@ import type { Config } from './config.js';
 import type { UsersStore } from './users.js';
 import { attachRole } from './middleware.js';
 import { registerAuthRoutes } from './routes/auth.js';
+import { registerDataRoutes } from './routes/data.js';
 
 export interface AppContext {
   config: Config;
@@ -23,5 +24,6 @@ export function createApp(deps: Omit<AppContext, 'now'> & { now?: () => Date }):
   app.use(cookieParser());
   app.use(attachRole(ctx.config, ctx.now));
   registerAuthRoutes(app, ctx);
+  registerDataRoutes(app, ctx);
   return app;
 }
