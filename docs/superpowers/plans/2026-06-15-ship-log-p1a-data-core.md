@@ -223,6 +223,17 @@ describe('record engine', () => {
     expect(reparsed.data).toEqual({ id: 'c-x', amount: 95 });
     expect(reparsed.body).toBe('');
   });
+
+  it('keeps a bare ISO date in frontmatter as a string (no Date coercion) and round-trips it', () => {
+    const file = ['---', 'id: t-2024-06-22', 'date: 2024-06-22', '---', '', 'Sailed.'].join('\n');
+    const { data } = parseRecord(file);
+    expect(typeof data.date).toBe('string');
+    expect(data.date).toBe('2024-06-22');
+
+    const reparsed = parseRecord(serializeRecord({ id: 't-2024-06-22', date: '2024-06-22' }, 'Sailed.'));
+    expect(typeof reparsed.data.date).toBe('string');
+    expect(reparsed.data.date).toBe('2024-06-22');
+  });
 });
 ```
 
@@ -236,23 +247,39 @@ Expected: FAIL — cannot resolve `../../src/data/record.js`.
 Create `src/data/record.ts`:
 ```ts
 import matter from 'gray-matter';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 
-/** Parse a Markdown+YAML-frontmatter file into structured data + trimmed body. */
+// Use the `yaml` package (YAML 1.2 core schema) as gray-matter's YAML engine so
+// frontmatter values parse predictably. Notably, bare ISO dates like
+// `date: 2024-06-22` stay STRINGS — js-yaml's default schema would coerce them to
+// Date objects, which would then fail our `z.string()` date fields downstream.
+const engines = {
+  yaml: {
+    parse: (s: string) => parseYaml(s) as object,
+    stringify: (o: object) => stringifyYaml(o),
+  },
+};
+
+/**
+ * Parse a Markdown+YAML-frontmatter file into structured data + body.
+ * The body is trimmed intentionally: bodies are narrative Markdown, where
+ * leading/trailing blank lines are not significant.
+ */
 export function parseRecord(fileContents: string): { data: Record<string, unknown>; body: string } {
-  const parsed = matter(fileContents);
+  const parsed = matter(fileContents, { engines });
   return { data: parsed.data as Record<string, unknown>, body: parsed.content.trim() };
 }
 
 /** Serialize structured data + body back into a Markdown+YAML-frontmatter file. */
 export function serializeRecord(data: Record<string, unknown>, body: string): string {
-  return matter.stringify(body, data);
+  return matter.stringify(body, data, { engines });
 }
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npm test -- record`
-Expected: PASS (3 tests). If body round-trip fails on trailing whitespace, confirm `parseRecord` trims and the test bodies have no leading/trailing blank lines.
+Expected: PASS (4 tests). If body round-trip fails on trailing whitespace, confirm `parseRecord` trims and the test bodies have no leading/trailing blank lines.
 
 - [ ] **Step 5: Commit**
 
@@ -398,7 +425,7 @@ export const findingSchema = z.object({
 });
 
 export const tripSchema = z.object({
-  id: z.string().regex(/^t-\d{4}-\d{2}-\d{2}/),
+  id: z.string().regex(/^t-\d{4}-\d{2}-\d{2}(-.+)?$/),
   title: z.string().optional(),
   date: z.string(),
   durationHrs: z.number().optional(),
@@ -780,7 +807,11 @@ export const boatSchema = z.object({
 });
 export type Boat = z.infer<typeof boatSchema>;
 
-/** Per-collection record schemas, keyed by collection name (singular). */
+/**
+ * Per-collection record schemas, keyed by collection name (singular).
+ * Excludes `quickref` (parsed as a whole array, not per-record) and `boat`
+ * (a singleton config, not a record collection) — both are validated directly.
+ */
 export const collectionSchemas = {
   trip: tripSchema,
   maintenance: maintenanceSchema,
@@ -1060,8 +1091,11 @@ async function loadCollection<T>(dir: string, sub: string, schema: z.ZodType<T>)
   let files: string[];
   try {
     files = (await readdir(join(dir, sub))).filter((f) => f.endsWith('.md'));
-  } catch {
-    return []; // collection dir may not exist yet
+  } catch (err) {
+    // A missing collection directory is fine (returns []); anything else
+    // (permissions, not-a-directory, etc.) is a real error — rethrow it.
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+    return [];
   }
   const out: WithBody<T>[] = [];
   for (const file of files.sort()) {
@@ -1083,7 +1117,11 @@ export async function loadDataset(dir: string): Promise<Dataset> {
   let quickref: Quickref = [];
   try {
     quickref = quickrefSchema.parse(parseYaml(await readFile(join(dir, 'quickref.yaml'), 'utf8')));
-  } catch { /* quickref is optional */ }
+  } catch (err) {
+    // quickref.yaml is optional: a MISSING file is fine, but a present-but-broken
+    // file (bad YAML or schema-invalid) is a real error — rethrow it.
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+  }
 
   return {
     boat,
@@ -1381,9 +1419,16 @@ export interface SearchHit {
   title: string;
 }
 
-/** Flatten a record (frontmatter + body) into one lowercased haystack string. */
+/**
+ * Flatten a record's VALUES (not its field names) into one lowercased haystack.
+ * Dropping top-level keys means a query like "id"/"vendorid" doesn't match every
+ * record by field name. (Nested-object keys are still included via JSON.stringify.)
+ */
 function haystack(record: Record<string, unknown>): string {
-  return JSON.stringify(record).toLowerCase();
+  return Object.values(record)
+    .map((v) => (typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')))
+    .join(' ')
+    .toLowerCase();
 }
 
 export function search(ds: Dataset, query: string): SearchHit[] {

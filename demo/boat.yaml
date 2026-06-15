@@ -1,0 +1,18 @@
+name: Valkyrie
+make: Catalina
+model: "25"
+year: 1985
+hailingPort: Gull Point
+specs:
+  loa: "25 ft"
+  draft: "4 ft (fin keel)"
+welcome:
+  rules:
+    - Life jackets on deck under way.
+    - No bananas aboard. (Skipper's rule.)
+  whatToExpect: A relaxed day sail on a classic Catalina 25.
+  whatToBring:
+    - Soft-soled shoes
+    - Sun protection
+    - A layer for the afternoon breeze
+  safety: PFDs are under the V-berth. Fire extinguisher by the companionway.
