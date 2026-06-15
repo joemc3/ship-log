@@ -56,6 +56,7 @@ describe('cost-redaction golden test', () => {
       await request(app).get(ep).expect(401);
     }
     await request(app).get('/api/costs').expect(403);
+    await request(app).get('/api/costs/c-jib-halyard').expect(403);
     await request(app).get('/api/welcome').expect(200);
   });
 });
