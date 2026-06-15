@@ -18,6 +18,7 @@ export interface AppContext {
 export function createApp(deps: Omit<AppContext, 'now'> & { now?: () => Date }): Express {
   const ctx: AppContext = { ...deps, now: deps.now ?? (() => new Date()) };
   const app = express();
+  app.disable('x-powered-by');
   app.use(express.json());
   app.use(cookieParser());
   app.use(attachRole(ctx.config, ctx.now));

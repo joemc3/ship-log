@@ -8,6 +8,8 @@ export function registerAuthRoutes(app: Express, ctx: AppContext): void {
 
   // Public: boat identity + welcome block ONLY (guest-visible). No collections.
   app.get('/api/welcome', (_req, res) => {
+    // Public endpoint: explicitly curate the fields — do NOT spread `dataset.boat`,
+    // which would leak `specs` and any future boat fields to guests.
     const { name, make, model, year, hailingPort, welcome } = dataset.boat;
     res.json({ name, make, model, year, hailingPort, welcome: welcome ?? {} });
   });
@@ -38,7 +40,9 @@ export function registerAuthRoutes(app: Express, ctx: AppContext): void {
   });
 
   app.post('/api/logout', (_req, res) => {
-    res.clearCookie(SESSION_COOKIE, { path: '/' });
+    res.clearCookie(SESSION_COOKIE, {
+      httpOnly: true, sameSite: 'lax', secure: config.cookieSecure, path: '/',
+    });
     res.status(204).end();
   });
 

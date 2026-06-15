@@ -25,6 +25,10 @@ describe('auth routes', () => {
     expect(login.status).toBe(200);
     expect(login.body).toEqual({ username: 'owner1', role: 'owner' });
 
+    const setCookie = login.headers['set-cookie']?.[0] ?? '';
+    expect(setCookie).toContain('HttpOnly');
+    expect(setCookie).toContain('SameSite=Lax');
+
     const me = await agent.get('/api/me');
     expect(me.body).toMatchObject({ username: 'owner1', role: 'owner' });
 
