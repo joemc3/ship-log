@@ -1,0 +1,66 @@
+/* Page-local styles for the trip log — co-located so the shared app.css (owned
+   by the foundation) stays untouched. Everything here is scoped to this page:
+   the Markdown narrative typography and the detail's responsive two-column grid. */
+
+/* Markdown narrative ("Log" card body). Inherits the parchment palette tokens. */
+.markdown {
+  font-size: 15.5px;
+  color: var(--ink-700);
+}
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+.markdown p {
+  margin: 0 0 12px;
+  line-height: 1.64;
+}
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  margin: 18px 0 8px;
+  font-family: var(--font-display);
+  color: var(--ink-900);
+}
+.markdown ul,
+.markdown ol {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+.markdown li {
+  margin: 4px 0;
+  line-height: 1.55;
+}
+.markdown a {
+  color: var(--brass-deep);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.markdown code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+.markdown blockquote {
+  margin: 0 0 12px;
+  padding: 6px 14px;
+  border-left: 3px solid var(--brass);
+  background: var(--paper-2);
+  border-radius: var(--r-md);
+  color: var(--ink-600);
+  font-style: italic;
+}
+
+/* The detail's route/log column + the conditions/crew/photos column collapse to
+   a single column on narrow viewports (the prototype used an inline @media). */
+@media (max-width: 760px) {
+  .detailGrid {
+    grid-template-columns: 1fr !important;
+  }
+}

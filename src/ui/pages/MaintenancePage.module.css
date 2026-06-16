@@ -1,0 +1,125 @@
+/*
+ * Page-local styles for MaintenancePage — only the few bits the shared app.css
+ * has no global class for (the prototype rendered them with inline styles). The
+ * shared src/ui/styles/app.css is owned by the foundation and is NOT edited here.
+ */
+
+/* Detail two-column layout, collapsing on narrow screens. */
+.detailGrid {
+  grid-template-columns: 1.4fr 1fr;
+}
+@media (max-width: 760px) {
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* View toggle pill (Priority queue / Status board). */
+.toggle {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 30px;
+  padding: 4px;
+}
+.toggleBtn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  cursor: pointer;
+  border-radius: 24px;
+  padding: 7px 15px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 13px;
+  background: transparent;
+  color: var(--ink-600);
+}
+.toggleBtnOn {
+  background: var(--ink-700);
+  color: #fff;
+}
+
+/* Steps checklist. */
+.step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+.stepBox {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1.6px solid var(--line-strong);
+  background: var(--paper);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-top: 1px;
+}
+.stepBoxOn {
+  background: var(--patina);
+  border-color: var(--patina);
+}
+.stepText {
+  font-size: 14.5px;
+  padding-top: 2px;
+}
+
+/* A whole card that acts as a navigation control (vendor / source trip). */
+.linkCard {
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.linkCard:hover {
+  border-color: var(--brass);
+}
+
+/* The owner-only est. cost value, doubling as a cost cross-link. */
+.costLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--brass-deep);
+  padding: 0;
+  font: inherit;
+}
+.costLink:hover {
+  color: var(--brass);
+}
+
+/* Row chevron rendered as an accessible button (also the inventory cross-link). */
+.rowGo {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--ink-tint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+}
+.rowGo:hover {
+  color: var(--brass-deep);
+}
+
+/* Real photo tile (replaces the prototype placeholder). */
+.photo {
+  width: 100%;
+  height: 96px;
+  object-fit: cover;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--parchment-2);
+  display: block;
+}

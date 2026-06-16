@@ -11,5 +11,6 @@
     "types": ["node"],
     "outDir": "dist"
   },
-  "include": ["src", "test"]
+  "include": ["src", "test"],
+  "exclude": ["src/ui", "dist"]
 }

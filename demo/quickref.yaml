@@ -4,3 +4,12 @@
 - id: qr-anchor
   title: Setting the anchor
   body: Motor to spot, lower scope 5:1, back down gently to set, take a transit.
+- id: qr-mob
+  title: Man overboard
+  body: "Shout MOB and point continuously. Hit the MOB button on the GPS. Throw the horseshoe and flag. Quick-stop: tack, leave the jib backed, return on a close reach. Approach from leeward, stop alongside, recover low at the gate."
+- id: qr-vhf
+  title: VHF distress call
+  body: "Channel 16, high power. MAYDAY x3, vessel name Valkyrie x3, call sign WDJ5821. Give position (lat/long or range and bearing), nature of distress, persons aboard, assistance needed. Release, listen, repeat until answered."
+- id: qr-engine-start
+  title: Cold engine start
+  body: "Open the raw-water seacock (behind the companionway ladder). Battery switch to 1 or Both. Throttle to about one-third, no choke (it is a diesel). Preheat the glow circuit ~10 s, crank in short bursts. Once running, confirm cooling water at the exhaust within 30 s or shut down."

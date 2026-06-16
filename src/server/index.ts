@@ -5,10 +5,12 @@ import { ShipStore } from './store.js';
 import { UsersStore } from './users.js';
 import { createApp } from './app.js';
 
-const demoDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../demo');
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const demoDir = resolve(repoRoot, 'demo');
+const distUi = resolve(repoRoot, 'dist/ui'); // built SPA, served with history-fallback
 
 async function main(): Promise<void> {
-  const config = loadConfig(process.env, demoDir);
+  const config = loadConfig(process.env, demoDir, distUi);
   const store = await ShipStore.open(config.dataDir);
   const users = await UsersStore.load(config.usersPath);
 

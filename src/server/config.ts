@@ -10,6 +10,7 @@ export interface Config {
   sessionTtlMs: number;
   login: { windowMs: number; max: number };
   ownerBootstrap?: { username: string; password: string };
+  clientDir?: string;    // built SPA dir (dist/ui) to serve with history-fallback; absent => API-only
 }
 
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -23,6 +24,7 @@ const envSchema = z.object({
   COOKIE_SECURE: z.string().optional(),
   OWNER_USERNAME: z.string().optional(),
   OWNER_PASSWORD: z.string().optional(),
+  CLIENT_DIR: z.string().optional(),
 });
 
 /**
@@ -31,7 +33,11 @@ const envSchema = z.object({
  * placeholder). Demo mode = no DATA_DIR: serve the demo dataset read-only with no
  * auth. Outside demo, SESSION_SECRET is mandatory.
  */
-export function loadConfig(env: NodeJS.ProcessEnv, demoDir: string): Config {
+export function loadConfig(
+  env: NodeJS.ProcessEnv,
+  demoDir: string,
+  defaultClientDir?: string,
+): Config {
   const e = envSchema.parse(env);
   const demo = !e.DATA_DIR;
   if (!demo && !e.SESSION_SECRET) {
@@ -50,5 +56,7 @@ export function loadConfig(env: NodeJS.ProcessEnv, demoDir: string): Config {
       e.OWNER_USERNAME && e.OWNER_PASSWORD
         ? { username: e.OWNER_USERNAME, password: e.OWNER_PASSWORD }
         : undefined,
+    // Explicit CLIENT_DIR wins; otherwise serve the bundled build if one exists.
+    clientDir: e.CLIENT_DIR ?? defaultClientDir,
   };
 }

@@ -14,6 +14,7 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerDataRoutes } from './routes/data.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { registerWriteRoutes } from './routes/writes.js';
+import { registerPhotoRoute, registerSpaStatic } from './static.js';
 
 export interface AppContext {
   config: Config;
@@ -42,8 +43,18 @@ export function createApp(deps: Omit<AppContext, 'now'> & { now?: () => Date }):
   registerDataRoutes(app, ctx);
   registerAdminRoutes(app, ctx);
   registerWriteRoutes(app, ctx);
+  registerPhotoRoute(app, ctx);
 
-  // Unmatched route -> JSON 404 (keeps the API JSON-only).
+  // Any unmatched /api or /photos path -> JSON 404. Registered BEFORE the SPA so
+  // an unknown API/photo route is always a JSON 404 and never index.html.
+  app.use(['/api', '/photos'], (_req, res) => { res.status(404).json({ error: 'not found' }); });
+
+  // Built SPA (dist/ui) with history-fallback for every other route. No-op when
+  // no client build is configured. It explicitly ignores /api + /photos.
+  registerSpaStatic(app, ctx);
+
+  // Final catch-all for anything the SPA didn't serve (e.g. no client build):
+  // keep the surface JSON-only.
   app.use((_req, res) => { res.status(404).json({ error: 'not found' }); });
 
   // Global JSON error handler (must be registered last).

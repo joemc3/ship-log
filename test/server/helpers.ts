@@ -26,12 +26,13 @@ export interface TestApp {
  * with a seeded owner1/crew1 over a throwaway git data repo; pass { demo: true }
  * for the no-auth demo path.
  */
-export async function buildTestApp(opts: { demo?: boolean } = {}): Promise<TestApp> {
+export async function buildTestApp(opts: { demo?: boolean; clientDir?: string } = {}): Promise<TestApp> {
   const usersPath = join(mkdtempSync(join(tmpdir(), 'shiplog-users-')), 'users.json');
   const dataDir = opts.demo ? DEMO : await makeDataRepo();
-  const env = opts.demo
+  const env: NodeJS.ProcessEnv = opts.demo
     ? { USERS_PATH: usersPath }
     : { DATA_DIR: dataDir, SESSION_SECRET: 'test-secret', COOKIE_SECURE: 'false', USERS_PATH: usersPath };
+  if (opts.clientDir) env.CLIENT_DIR = opts.clientDir;
   const config = loadConfig(env, DEMO);
   const store = await ShipStore.open(config.dataDir, { now: FIXED_NOW });
   const users = await UsersStore.load(usersPath);

@@ -21,20 +21,23 @@ describe('checkLinkIntegrity', () => {
 
   it('reports a cost pointing at a missing vendor', async () => {
     const ds = await loadDataset(DEMO);
-    ds.costs[0]!.vendorId = 'v-ghost';
+    const cost = ds.costs.find((c) => c.id === 'c-jib-halyard')!;
+    cost.vendorId = 'v-ghost';
     const broken = checkLinkIntegrity(ds);
     expect(broken).toContainEqual({ from: 'c-jib-halyard', field: 'vendorId', target: 'v-ghost' });
   });
 
   it('reports a maintenance item pointing at a missing vendor', async () => {
     const ds = await loadDataset(DEMO);
-    ds.maintenance[0]!.vendorId = 'v-ghost';
+    const maint = ds.maintenance.find((m) => m.id === 'm-jib-halyard')!;
+    maint.vendorId = 'v-ghost';
     expect(checkLinkIntegrity(ds)).toContainEqual({ from: 'm-jib-halyard', field: 'vendorId', target: 'v-ghost' });
   });
 
   it('reports a maintenance item pointing at a missing originating trip', async () => {
     const ds = await loadDataset(DEMO);
-    ds.maintenance[0]!.fromTripId = 't-ghost';
+    const maint = ds.maintenance.find((m) => m.id === 'm-jib-halyard')!;
+    maint.fromTripId = 't-ghost';
     expect(checkLinkIntegrity(ds)).toContainEqual({ from: 'm-jib-halyard', field: 'fromTripId', target: 't-ghost' });
   });
 });

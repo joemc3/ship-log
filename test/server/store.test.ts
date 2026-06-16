@@ -64,7 +64,10 @@ describe('ShipStore', () => {
     const store = await ShipStore.open(dir, { now: NOW });
     await store.deleteRecord('trip', 't-2024-06-22', AUTHOR);
     expect(store.current().trips.some((t) => t.id === 't-2024-06-22')).toBe(false);
-    expect((await simpleGit(dir).raw(['ls-files', 'trips'])).trim()).toBe('');
+    // The removed file is no longer tracked; other trips in the (enriched) demo
+    // dataset remain committed.
+    const tracked = (await simpleGit(dir).raw(['ls-files', 'trips'])).trim();
+    expect(tracked).not.toContain('t-2024-06-22.md');
   });
 
   it('serializes concurrent writes (single writer, unique ids)', async () => {
