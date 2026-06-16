@@ -59,4 +59,20 @@ describe('cost-redaction golden test', () => {
     await request(app).get('/api/costs/c-jib-halyard').expect(403);
     await request(app).get('/api/welcome').expect(200);
   });
+
+  it('no monetary key appears in any crew WRITE response', async () => {
+    const { app } = await buildTestApp();
+    const agent = request.agent(app);
+    await agent.post('/api/login').send({ username: 'crew1', password: 'crewpass123' });
+
+    const trip = await agent.post('/api/trips').send({ date: '2024-08-20', title: 'Eve sail', body: 'Calm.' });
+    expect(trip.status).toBe(201);
+    assertNoMonetaryKey(trip.body, 'POST /api/trips');
+
+    // Completing a maintenance item that carries a costEst must not echo it back.
+    const done = await agent.post('/api/maintenance/m-jib-halyard/complete').send({ completed: '2024-07-09' });
+    expect(done.status).toBe(200);
+    assertNoMonetaryKey(done.body, 'POST /api/maintenance/:id/complete');
+    expect('costEst' in done.body).toBe(false);
+  });
 });
