@@ -5,3 +5,4 @@ export * from './dataset.js';
 export * from './links.js';
 export * from './derive.js';
 export * from './search.js';
+export * from './write.js';
