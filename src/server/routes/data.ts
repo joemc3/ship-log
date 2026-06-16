@@ -5,8 +5,8 @@ import { redactDataset } from '../redact.js';
 import { search as searchData, deriveInventoryTasks, deriveAttention } from '../../data/index.js';
 
 export function registerDataRoutes(app: Express, ctx: AppContext): void {
-  const { dataset, now } = ctx;
-  const view = (req: Request) => redactDataset(dataset, req.viewer.role);
+  const { store, now } = ctx;
+  const view = (req: Request) => redactDataset(store.current(), req.viewer.role);
 
   app.get('/api/boat', requireAuth, (req, res) => res.json(view(req).boat));
 
@@ -28,9 +28,9 @@ export function registerDataRoutes(app: Express, ctx: AppContext): void {
   app.get('/api/quickref', requireAuth, (req, res) => res.json(view(req).quickref));
 
   // Owner-only collection. requireOwner => 403 for crew/guest.
-  app.get('/api/costs', requireOwner, (_req, res) => res.json(dataset.costs));
+  app.get('/api/costs', requireOwner, (_req, res) => res.json(store.current().costs));
   app.get('/api/costs/:id', requireOwner, (req, res) => {
-    const c = dataset.costs.find((x) => x.id === req.params.id);
+    const c = store.current().costs.find((x) => x.id === req.params.id);
     if (c) res.json(c); else res.status(404).json({ error: 'not found' });
   });
 

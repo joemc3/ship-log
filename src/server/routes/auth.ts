@@ -4,13 +4,14 @@ import { createToken, SESSION_COOKIE } from '../session.js';
 import { requireAuth, loginLimiter } from '../middleware.js';
 
 export function registerAuthRoutes(app: Express, ctx: AppContext): void {
-  const { config, dataset, users, now } = ctx;
+  const { config, store, users, now } = ctx;
 
-  // Public: boat identity + welcome block ONLY (guest-visible). No collections.
+  // Public (guest-visible) endpoint: boat identity + welcome block ONLY, no
+  // collections. Explicitly curate the returned fields — do NOT spread
+  // store.current().boat — so adding a field to boat.yaml can never leak it to
+  // unauthenticated callers.
   app.get('/api/welcome', (_req, res) => {
-    // Public endpoint: explicitly curate the fields — do NOT spread `dataset.boat`,
-    // which would leak `specs` and any future boat fields to guests.
-    const { name, make, model, year, hailingPort, welcome } = dataset.boat;
+    const { name, make, model, year, hailingPort, welcome } = store.current().boat;
     res.json({ name, make, model, year, hailingPort, welcome: welcome ?? {} });
   });
 

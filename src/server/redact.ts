@@ -43,3 +43,23 @@ export function redactDataset(ds: Dataset, role: Role): Dataset {
   }
   return view;
 }
+
+/**
+ * Redact a SINGLE record for a write response. Owners get it unchanged. For
+ * crew/guest: owner-only collections return null (must never be echoed back) and
+ * monetary fields are stripped. Mirrors redactDataset, per record. `collection`
+ * is the singular name (e.g. 'maintenance', 'cost').
+ */
+export function redactRecord<T extends Record<string, unknown>>(
+  collection: string,
+  record: T,
+  role: Role,
+): T | null {
+  if (role === 'owner') return record;
+  if ((OWNER_ONLY_COLLECTIONS as readonly string[]).includes(collection)) return null;
+  const fields = MONETARY_FIELDS[collection] ?? [];
+  if (fields.length === 0) return record;
+  const copy = structuredClone(record);
+  for (const f of fields) delete (copy as Record<string, unknown>)[f];
+  return copy;
+}
