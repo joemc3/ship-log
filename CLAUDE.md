@@ -56,9 +56,12 @@ same change.
   weaken it.
 - Demo mode (no `DATA_DIR`): every request is owner-equivalent and read-only,
   flagged via `GET /api/me`; login/writes are disabled.
-- Transport-level hardening (HSTS, CSP) is deferred to P2 (VPS deployment behind
-  the Pangolin tunnel); the app sets `X-Content-Type-Options: nosniff` and disables
-  `X-Powered-By`, and returns JSON (not HTML) on errors.
+- **Transport hardening** (`hardeningHeaders` in `src/server/app.ts`): every
+  response sets `X-Content-Type-Options: nosniff`, disables `X-Powered-By`, sets a
+  same-origin **CSP**, and returns JSON (not HTML) on errors. Behind TLS
+  (`COOKIE_SECURE=true` and non-demo) it adds **HSTS** + the CSP
+  `upgrade-insecure-requests` directive; on plain http / demo both are omitted so
+  local dev is never pinned to https. See the "Sync & deploy (P2)" section.
 
 ## Write layer (P1c)
 
@@ -68,10 +71,61 @@ same change.
   commit → reload-from-disk → atomic snapshot swap`; reads call `store.current()`,
   so a read never sees a torn dataset. `createApp` takes `store` (not a raw
   `dataset`).
-- **Local commit only.** `src/server/git.ts` wraps `simple-git` to `add`+`commit`
-  the working clone, authored as the logged-in user. `pull`/`push`/sync/conflicts
-  are **P2**. If `DATA_DIR` is not a git repo, the store persists files **without**
-  committing (warned) so local scratch dirs work.
+- **Local commit only.** `src/server/git.ts` (`GitRepo`) wraps `simple-git`.
+  `commitPaths(paths, message, author?)` stages **only** the precise repo-relative
+  path(s) a write touched — adds/edits via `git add`, deletions via `git rm
+  --ignore-unmatch` — then commits (NEVER `git add .`), so an unrelated dirty file
+  is never swept into a write's commit (golden-tested in `git.test.ts` +
+  `store.test.ts`). The store passes `recordPath(...)` / `photos/<name>` for each
+  mutation. Commits are authored as the logged-in user; `FALLBACK_AUTHOR`
+  (`Ship's Log <shiplog@localhost>`) is the generic identity for any system
+  commit (used when no author is supplied). If `DATA_DIR` is not a git repo, the
+  store persists files **without** committing (warned) so local scratch dirs work.
+- **Remote sync (P2, git layer).** `GitRepo.pullRebase()` / `push()` wrap
+  `simple-git`'s `pull --rebase` / `push` and return structured results (never
+  throw on the expected conflict path). `pullRebase()` → `PullResult { status:
+  'up-to-date' | 'fast-forward' | 'conflict' | 'error' | 'disabled', ok, conflict,
+  message? }`: on a rebase conflict it runs `rebase --abort` so the tree returns
+  to its original clean HEAD and reports `conflict:true`; a transport/credential
+  failure (no rebase started) is `status:'error'`, not a conflict. `push()` →
+  `PushResult { status: 'pushed' | 'up-to-date' | 'conflict' | 'error' |
+  'disabled', ok, conflict, message?, pull? }`: on a non-fast-forward rejection it
+  runs `pullRebase()` then retries the push **once**; if that pull hit a conflict
+  the push is **skipped** and the conflict surfaced (`pull` carries the
+  `PullResult`). It NEVER force-pushes and never clobbers the remote; when the dir
+  is not a repo both are no-ops (`status:'disabled'`). `GitRepo.hasRemote()` /
+  `headSha()` support the sync layer (a repo with no `origin` is committable but
+  not syncable; the store keys "reload after pull" off a HEAD-advance, since a
+  rebase that replays a local commit reports zero touched files).
+- **Sync engine (P2).** `ShipStore` owns observable sync state
+  (`syncState() → { status: 'ok' | 'conflict' | 'offline', lastPullAt?,
+  lastPushAt?, lastError? }`), mutated **only** inside the serial write queue / the
+  scheduler's queued pull so it never disagrees with the snapshot. After a write's
+  local commit the store runs `pullRebase → push`: on a rebase **conflict** it
+  persists locally, sets `status:'conflict'`, and **pauses auto-push** (later
+  writes commit-only) until a clean pull clears it; a transport/credential failure
+  sets `status:'offline'` (the commit pushes on a later success). `lastError` is a
+  **generic, sanitized** reason (never a remote URL/path). The pull-on-HEAD-advance
+  triggers `reload()`. `store.pull()` routes a pull through the queue (used to
+  clear a conflict and by the scheduler). `src/server/sync.ts` `SyncScheduler` runs
+  `store.pull()` once on boot then every `PULL_INTERVAL` (default 5 min; the
+  `Timer` is injectable for deterministic tests, ticks are coalesced); it is inert
+  unless `store.syncEnabled()`. `index.ts` starts it only when non-demo, not
+  read-only, and syncable, and stops it on `SIGTERM`/`SIGINT`. Sync surfaces to
+  clients via the `sync` summary on `GET /api/me` (authenticated/demo only —
+  `{status, enabled, lastPullAt, lastPushAt}`, **no** error detail) and the
+  dedicated authenticated `GET /api/sync` (adds the generic `lastError`); guests
+  get neither (`/api/sync` → 401).
+- **Boot: clone-or-open.** `src/server/boot.ts` (`prepareStore(config, {now?,
+  fallbackDir?})`) ensures the working clone exists, then opens a `ShipStore` over
+  it. With `DATA_REPO_URL` set and an empty/absent `DATA_DIR` it `GitRepo.clone`s
+  the remote (SSH deploy key via `DATA_SSH_KEY_PATH` → `GIT_SSH_COMMAND`, or
+  `DATA_REPO_TOKEN` PAT for https); an existing clone is opened in place (never
+  re-cloned/clobbered). A clone/credential failure boots **read-only** over the
+  demo `fallbackDir` with a warning instead of crashing. Demo mode (no `DATA_DIR`,
+  no `DATA_REPO_URL`) opens the bundled demo dir with sync disabled. `index.ts`
+  wires this; config gains `dataRepoUrl`/`sshKeyPath`/`repoToken`
+  (`DEFAULT_CLONE_DIR = ./var/data` when only `DATA_REPO_URL` is set).
 - **Crew write scope:** crew may create/edit trips (`POST`/`PUT /api/trips`) and
   mark maintenance complete (`POST /api/maintenance/:id/complete`, a dedicated
   narrow op that can never touch `costEst`). Everything else (other collections,
@@ -85,6 +139,35 @@ same change.
   from their date, others from a slug of title/name/item, with numeric suffixes on
   collision. Photos (`src/server/photos.ts`) are validated + `sharp`-compressed
   (longest edge ≤ 2048 px, JPEG) and content-addressed under `photos/`.
+
+## Hardening & config invariants (P2)
+
+- **Transport hardening lives in one place** — the `hardeningHeaders(config)`
+  factory in `src/server/app.ts`, mounted as the first middleware. It always sets
+  `nosniff` + a same-origin **CSP** (`default-src 'self'`; `script-src 'self'`;
+  `style-src 'self' 'unsafe-inline'`; `img-src 'self' data:`; `connect-src 'self'`;
+  `frame-ancestors 'none'`; `object-src 'none'`; `base-uri`/`form-action 'self'`).
+  "Behind TLS" is `config.cookieSecure && !config.demo`; only then does it add
+  **HSTS** (`max-age=31536000; includeSubDomains`) and CSP
+  `upgrade-insecure-requests`. Never send HSTS on plain http (it would pin a
+  localhost browser to https). If you add a new asset origin (CDN, font host),
+  widen the matching CSP directive here — do not sprinkle per-route headers.
+  Guarded by `test/server/app.test.ts` (prod posture sets HSTS+CSP, local/demo omit
+  HSTS, the API still returns JSON).
+- **Users-store-volume invariant (`config.ts`):** boot **fails loud** if
+  `USERS_PATH` resolves *inside* `DATA_DIR` (resolved-path containment check, so
+  `..` and shared-prefix siblings like `/srv/data` vs `/srv/data-backup` are judged
+  correctly). The hashed-credential store must never enter the git data clone. The
+  guard is skipped in demo (the demo dir is read-only). The users store is the one
+  piece of deployment state the data repo can't regenerate — **back up its volume**
+  (`shiplog-users` → `/app/var`). Tested in `config.test.ts`.
+- **Docker-secret `*_FILE` indirection (`config.ts`):** `SESSION_SECRET`,
+  `OWNER_PASSWORD`, and `DATA_REPO_TOKEN` each also accept a `<NAME>_FILE` form
+  (the file contents, trailing newline trimmed, become the value); the inline var
+  wins when both are set and a missing `_FILE` path is a loud boot error. This is
+  how `docker-compose.vps.yml` feeds Docker secrets in. When you add a new
+  secret-bearing env var, add it to `SECRET_FILE_VARS` so the secret-file form
+  works. Tested in `config.test.ts`.
 
 ## Web UI (P1d)
 
@@ -310,3 +393,45 @@ same change.
   `*.test.tsx` against mocked `api`/`useSession` (login success + 401 generic +
   429; change-password success + min-8 + wrong-current; admin list + create/
   update/delete happy paths + each error status).
+
+## Docker & VPS deployment (P2)
+
+- Four artifacts (`Dockerfile`, `.dockerignore`, `docker-compose.yml`,
+  `docker-compose.vps.yml`) package the app for the Pangolin-tunnel VPS, mirroring
+  the DA-RAG pattern. **The runtime layout under `/app` is load-bearing:** the
+  entry resolves the repo root as `../..` from `src/server`, so `demo/` and
+  `dist/ui` MUST sit at `/app/demo` and `/app/dist/ui`. Preserve that if you change
+  the image layout.
+- **Multi-stage Dockerfile:** stage 1 (`node:20-bookworm`) `npm ci` + `npm run
+  build:ui`; stage 2 (`node:20-bookworm-slim`) ships **prod deps only** plus a
+  **globally-installed pinned `tsx`** (the server runs TS directly — there is no
+  server compile; a local `--no-save` tsx install is pruned under
+  `NODE_ENV=production`, so it is `npm install -g tsx@<pin>`). The runtime image
+  installs **`git`** (+ `openssh-client`, `ca-certificates`) because the git layer
+  shells out to it for clone/commit/pull/push. Native deps (`sharp`,
+  `@node-rs/argon2`) get **linux** binaries because every install runs in-image;
+  `.dockerignore` excludes the host `node_modules` so darwin binaries never leak
+  in. Boots with **no network** and runs as the unprivileged `node` user.
+- **Two named volumes, never merged:** `shiplog-users` at `/app/var` (the
+  hashed-credential users store, `USERS_PATH`, never in git) and `shiplog-data` at
+  `/app/data` (the git working clone, `DATA_DIR`). The base compose publishes
+  `8080:8080` for local dev and wires the sync env (`DATA_REPO_URL`, `DATA_DIR`,
+  `PULL_INTERVAL`, `DATA_SSH_KEY_PATH`/`DATA_REPO_TOKEN`). Unset
+  `DATA_REPO_URL`/`DATA_DIR` ⇒ demo mode (sync disabled).
+- **`docker-compose.vps.yml` override:** `ports: !reset []` (publish nothing —
+  ingress is the Pangolin tunnel only), attach to the **external `pangolin`**
+  network at a **pinned static IP**, and source `SESSION_SECRET` + owner-bootstrap
+  password + the git deploy key as Docker **secrets**. The secret env uses the
+  `*_FILE` indirection (`SESSION_SECRET_FILE`, `OWNER_PASSWORD_FILE` →
+  `/run/secrets/*`), which `config.ts` resolves (see "Hardening & config
+  invariants"); `DATA_SSH_KEY_PATH` points at the mounted deploy key. The pinned IP
+  (`172.18.0.22`) is **PROVISIONAL** — reconcile with Joe's Gerbil IPAM/subnet
+  before deploy. Validate both files with `docker compose -f docker-compose.yml
+  [-f docker-compose.vps.yml] config`.
+- **Behind TLS:** the Pangolin tunnel terminates TLS upstream, so production runs
+  with `COOKIE_SECURE=true` — which is also what flips on HSTS + the CSP
+  `upgrade-insecure-requests` (see "Hardening & config invariants"). Keep
+  `COOKIE_SECURE=true` in the VPS shape.
+- **First deploy** (fork app → private `<boat>-log` data repo → deploy key / PAT →
+  secrets → reconcile pinned IP → `compose up` → log in as owner) is walked through
+  step-by-step in `README.md` ("VPS deploy walkthrough" + "Credential modes").

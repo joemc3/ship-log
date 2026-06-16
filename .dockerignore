@@ -1,0 +1,42 @@
+# Build context excludes — keep the image lean and force in-container installs.
+#
+# CRITICAL: node_modules is excluded so the host's darwin-arm64 native binaries
+# for `sharp` and `@node-rs/argon2` never leak into a linux image. The Dockerfile
+# runs `npm ci` inside the container, which resolves the correct platform-specific
+# optional deps (@img/sharp-linux-*, @node-rs/argon2-linux-*) for the build arch.
+node_modules
+**/node_modules
+
+# Build artifacts — the image rebuilds the SPA itself (npm run build:ui → dist/ui).
+dist
+**/dist
+
+# VCS + deployment state
+.git
+.gitignore
+
+# Deployment/runtime state that must live in volumes, never baked into the image:
+# the users store (hashed credentials) and any local data working clone.
+var
+data
+
+# Tests + their fixtures are not needed at runtime.
+test
+**/*.test.ts
+**/*.test.tsx
+vitest.config.ts
+
+# Editor / OS cruft
+.DS_Store
+*.local
+.env
+.env.*
+npm-debug.log*
+
+# Docs and the design prototype are not part of the runtime image.
+docs
+
+# The Docker artifacts themselves don't belong in the build context.
+Dockerfile
+docker-compose*.yml
+.dockerignore

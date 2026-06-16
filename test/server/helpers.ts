@@ -57,3 +57,44 @@ export async function makeDataRepo(): Promise<string> {
   await git.commit('seed demo dataset');
   return dir;
 }
+
+/** A working clone of a bare data repo: its dir plus a simple-git handle with a
+ *  committer identity configured (so `commit`/`push` work without global config). */
+export interface WorkClone {
+  dir: string;
+  git: ReturnType<typeof simpleGit>;
+}
+
+/**
+ * Build a temp BARE repo seeded with the demo dataset (over a throwaway working
+ * clone), so sync tests run entirely against `file://` with no network. Returns
+ * the bare repo path; clone it with {@link cloneData}. This is the harness for
+ * every two-way-sync test (store sync-state, scheduler, integration).
+ */
+export async function makeBareDataRepo(): Promise<string> {
+  const bare = mkdtempSync(join(tmpdir(), 'shiplog-bare-'));
+  await simpleGit(bare).init(['--bare']);
+  const seedDir = mkdtempSync(join(tmpdir(), 'shiplog-seed-'));
+  await cp(DEMO, seedDir, { recursive: true });
+  const g = simpleGit(seedDir);
+  await g.init();
+  await g.addConfig('user.email', 'seed@shiplog.test');
+  await g.addConfig('user.name', 'Seed');
+  await g.add('.');
+  await g.commit('seed demo dataset');
+  // Push the seed onto the bare repo's default branch so clones have a HEAD.
+  const branch = (await g.raw(['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+  await g.addRemote('origin', `file://${bare}`);
+  await g.push(['-u', 'origin', branch]);
+  return bare;
+}
+
+/** Clone a bare data repo into a fresh working dir with a committer identity set. */
+export async function cloneData(bare: string, who = 'cap'): Promise<WorkClone> {
+  const dir = mkdtempSync(join(tmpdir(), `shiplog-clone-${who}-`));
+  await simpleGit().clone(`file://${bare}`, dir);
+  const git = simpleGit(dir);
+  await git.addConfig('user.email', `${who}@boat.test`);
+  await git.addConfig('user.name', who);
+  return { dir, git };
+}

@@ -1,7 +1,16 @@
 import type { Express } from 'express';
 import type { AppContext } from '../app.js';
+import type { ShipStore } from '../store.js';
 import { createToken, SESSION_COOKIE } from '../session.js';
 import { requireAuth, loginLimiter } from '../middleware.js';
+
+/** Client-safe sync summary for `/api/me`: status + timestamps + the enabled bit,
+ *  but NEVER the error reason (that stays on the dedicated `/api/sync` endpoint and
+ *  is generic even there). */
+function syncSummary(store: ShipStore): { status: string; enabled: boolean; lastPullAt?: Date; lastPushAt?: Date } {
+  const s = store.syncState();
+  return { status: s.status, enabled: store.syncEnabled(), lastPullAt: s.lastPullAt, lastPushAt: s.lastPushAt };
+}
 
 export function registerAuthRoutes(app: Express, ctx: AppContext): void {
   const { config, store, users, now } = ctx;
@@ -16,11 +25,29 @@ export function registerAuthRoutes(app: Express, ctx: AppContext): void {
   });
 
   app.get('/api/me', (req, res) => {
+    // Authenticated viewers (and demo, which is owner-equivalent) get a light sync
+    // summary so the SPA can banner a conflict/offline state. Guests never do.
+    const showSync = config.demo || req.viewer.role !== 'guest';
     res.json({
       role: req.viewer.role,
       username: req.viewer.username,
       demo: config.demo,
       ownerConfigured: !users.isEmpty(),
+      ...(showSync ? { sync: syncSummary(store) } : {}),
+    });
+  });
+
+  // Dedicated sync endpoint (authenticated; demo is owner-equivalent so it passes
+  // requireAuth). Guests get 401 — they never see sync internals. Carries the
+  // GENERIC, sanitized reason in addition to the summary; still no remote URL/path.
+  app.get('/api/sync', requireAuth, (_req, res) => {
+    const s = store.syncState();
+    res.json({
+      status: s.status,
+      enabled: store.syncEnabled(),
+      lastPullAt: s.lastPullAt,
+      lastPushAt: s.lastPushAt,
+      lastError: s.lastError,
     });
   });
 

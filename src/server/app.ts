@@ -23,10 +23,61 @@ export interface AppContext {
   now: () => Date;
 }
 
-/** Basic hardening header on every response. */
-function noSniff(_req: Request, res: Response, next: NextFunction): void {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  next();
+/** ~1 year, the value HSTS preload lists expect. */
+const HSTS_MAX_AGE = 31_536_000;
+
+/**
+ * Content-Security-Policy for the same-origin Vite/React SPA. Everything is served
+ * from the app's own origin, so the base policy is `'self'`. Notes:
+ *  - `script-src 'self'`: the built bundle is same-origin JS; no inline scripts.
+ *  - `style-src 'self' 'unsafe-inline'`: Vite/React inject a few inline styles;
+ *    `'unsafe-inline'` for styles only (NOT scripts) is the pragmatic SPA tradeoff.
+ *  - `img-src 'self' data:`: photos are same-origin, plus inline `data:` thumbnails.
+ *  - `connect-src 'self'`: the SPA only talks to its own /api.
+ *  - `frame-ancestors 'none'` + `object-src 'none'`: anti-clickjacking / no plugins.
+ *  - `upgrade-insecure-requests` is appended ONLY behind TLS (production) so it
+ *    never forces https on a plain-http localhost dev server.
+ */
+function contentSecurityPolicy(tls: boolean): string {
+  const directives = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ];
+  if (tls) directives.push('upgrade-insecure-requests');
+  return directives.join('; ');
+}
+
+/**
+ * Hardening headers on every response, config-aware:
+ *  - `X-Content-Type-Options: nosniff` — always.
+ *  - `Content-Security-Policy` — always (the SPA is same-origin in every mode);
+ *    `upgrade-insecure-requests` is added only when behind TLS.
+ *  - `Strict-Transport-Security` — ONLY behind TLS (COOKIE_SECURE=true and not
+ *    demo). Sending HSTS over plain http would pin a localhost/dev browser to
+ *    https and break local dev, so it stays off there.
+ *
+ * "Behind TLS" is inferred from `cookieSecure` (true in the Pangolin-tunnel VPS
+ * shape) AND not-demo (demo is always plain http with no tunnel).
+ */
+function hardeningHeaders(config: Config): (req: Request, res: Response, next: NextFunction) => void {
+  const tls = config.cookieSecure && !config.demo;
+  const csp = contentSecurityPolicy(tls);
+  return (_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', csp);
+    if (tls) {
+      res.setHeader('Strict-Transport-Security', `max-age=${HSTS_MAX_AGE}; includeSubDomains`);
+    }
+    next();
+  };
 }
 
 /** Build the Express app from injected deps. `now` defaults to the real clock;
@@ -35,7 +86,7 @@ export function createApp(deps: Omit<AppContext, 'now'> & { now?: () => Date }):
   const ctx: AppContext = { ...deps, now: deps.now ?? (() => new Date()) };
   const app = express();
   app.disable('x-powered-by');
-  app.use(noSniff);
+  app.use(hardeningHeaders(ctx.config));
   app.use(express.json());
   app.use(cookieParser());
   app.use(attachRole(ctx.config, ctx.now));
