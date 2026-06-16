@@ -37,9 +37,9 @@ same change.
 
 ## Server layer (P1b)
 
-- `src/server/` is the read API: one responsibility per file; it imports the data
+- `src/server/` is the read/write API: one responsibility per file; it imports the data
   layer **only** from `src/data/index.ts`. The app is a `createApp(deps)` factory
-  with injected `{config, dataset, users, now}` — tests drive it via `supertest`
+  with injected `{config, store, users, now}` — tests drive it via `supertest`
   in-process; `now` is injected so derived views stay deterministic.
 - Auth: argon2id password hashing (`@node-rs/argon2`) + stateless HMAC-signed
   HTTP-only session cookies (`SESSION_SECRET`). The users store (`users.json`) is
@@ -56,3 +56,29 @@ same change.
 - Transport-level hardening (HSTS, CSP) is deferred to P2 (VPS deployment behind
   the Pangolin tunnel); the app sets `X-Content-Type-Options: nosniff` and disables
   `X-Powered-By`, and returns JSON (not HTML) on errors.
+
+## Write layer (P1c)
+
+- All writes go through `ShipStore` (`src/server/store.ts`) — the single
+  server-side writer. It owns the in-memory dataset snapshot, a **serial write
+  queue**, and the git client. Every mutation runs `validate → write file →
+  commit → reload-from-disk → atomic snapshot swap`; reads call `store.current()`,
+  so a read never sees a torn dataset. `createApp` takes `store` (not a raw
+  `dataset`).
+- **Local commit only.** `src/server/git.ts` wraps `simple-git` to `add`+`commit`
+  the working clone, authored as the logged-in user. `pull`/`push`/sync/conflicts
+  are **P2**. If `DATA_DIR` is not a git repo, the store persists files **without**
+  committing (warned) so local scratch dirs work.
+- **Crew write scope:** crew may create/edit trips (`POST`/`PUT /api/trips`) and
+  mark maintenance complete (`POST /api/maintenance/:id/complete`, a dedicated
+  narrow op that can never touch `costEst`). Everything else (other collections,
+  all `DELETE`s, full maintenance edit) is owner-only. Photo upload
+  (`POST /api/photos`) is crew + owner. Every write route carries `denyInDemo`.
+- **Redaction-on-write:** write responses pass through `redactRecord` (same
+  `monetary.ts` registry) so a crew/guest write response never carries a monetary
+  field; the `redaction-golden` test covers write responses too. When you add a
+  cost-bearing field, register it in `monetary.ts` in the same change.
+- Record ids are derived server-side in `src/data/write.ts` (`deriveId`): trips
+  from their date, others from a slug of title/name/item, with numeric suffixes on
+  collision. Photos (`src/server/photos.ts`) are validated + `sharp`-compressed
+  (longest edge ≤ 2048 px, JPEG) and content-addressed under `photos/`.
