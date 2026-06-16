@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from 'express';
+import type { Express, Request, Response, RequestHandler } from 'express';
 import multer from 'multer';
 import type { AppContext } from '../app.js';
 import { requireAuth, requireOwner, denyInDemo } from '../middleware.js';
@@ -11,6 +11,19 @@ import { COLLECTION_DIR, type CollectionName } from '../../data/index.js';
 // 25 MB / type checks live in photos.ts and yield 413/415).
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
 
+// Multer errors (oversized, wrong field) throw inside the middleware, bypassing the
+// route try/catch. Map them to client-facing statuses instead of a generic 500.
+const acceptPhoto: RequestHandler = (req, res, next) =>
+  upload.single('photo')(req, res, (err: unknown) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError) {
+      const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      const message = err.code === 'LIMIT_FILE_SIZE' ? 'image exceeds the upload size limit' : `upload error: ${err.message}`;
+      return fail(res, new PhotoError(message, status));
+    }
+    return next(err);
+  });
+
 /** Commit author from the logged-in user (fallback to a generic app identity). */
 function authorFor(req: Request): { name: string; email: string } {
   const name = req.viewer.username ?? "Ship's Log";
@@ -22,6 +35,7 @@ function fail(res: Response, err: unknown): void {
     res.status(err.status).json({ error: err.message });
     return;
   }
+  console.error(err);
   res.status(500).json({ error: 'internal error' });
 }
 
@@ -85,7 +99,7 @@ export function registerWriteRoutes(app: Express, ctx: AppContext): void {
   }
 
   // ---- Photos: crew + owner (multipart field "photo") ----
-  app.post('/api/photos', requireAuth, noDemo, upload.single('photo'), async (req, res) => {
+  app.post('/api/photos', requireAuth, noDemo, acceptPhoto, async (req, res) => {
     if (!req.file) { res.status(400).json({ error: 'multipart file field "photo" required' }); return; }
     try {
       const out = await store.savePhoto(req.file.buffer, req.file.mimetype, authorFor(req));
