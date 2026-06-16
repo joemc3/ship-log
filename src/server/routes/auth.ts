@@ -6,7 +6,10 @@ import { requireAuth, loginLimiter } from '../middleware.js';
 export function registerAuthRoutes(app: Express, ctx: AppContext): void {
   const { config, store, users, now } = ctx;
 
-  // Public: boat identity + welcome block ONLY (guest-visible). No collections.
+  // Public (guest-visible) endpoint: boat identity + welcome block ONLY, no
+  // collections. Explicitly curate the returned fields — do NOT spread
+  // store.current().boat — so adding a field to boat.yaml can never leak it to
+  // unauthenticated callers.
   app.get('/api/welcome', (_req, res) => {
     const { name, make, model, year, hailingPort, welcome } = store.current().boat;
     res.json({ name, make, model, year, hailingPort, welcome: welcome ?? {} });
