@@ -21,7 +21,12 @@ export class GitRepo {
     let enabled = false;
     try {
       enabled = await git.checkIsRepo();
-    } catch {
+    } catch (err) {
+      // checkIsRepo() returns false for a non-repo dir; a throw here means an
+      // infrastructure problem (git missing, permissions). P1c is local-only, so
+      // degrade to persist-without-commit rather than crash — but log it, don't
+      // swallow it silently.
+      console.warn(`GitRepo: could not determine repo status for ${dir}; commits disabled.`, err);
       enabled = false;
     }
     return new GitRepo(git, enabled);
