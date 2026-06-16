@@ -79,6 +79,17 @@ describe('ShipStore', () => {
     expect(store.current().trips.filter((t) => t.id.startsWith('t-2024-09-01')).length).toBe(3);
   });
 
+  it('keeps the queue usable after an op rejects', async () => {
+    const dir = await makeDataRepo();
+    const store = await ShipStore.open(dir, { now: NOW });
+    // An in-queue rejection (unknown id → 404 raised inside the queued op).
+    await expect(store.updateRecord('trip', 't-nope', { title: 'x' }, AUTHOR)).rejects.toMatchObject({ status: 404 });
+    // The chain must not be poisoned: a following write still runs.
+    const rec = await store.createRecord('vendor', { name: 'After Failure' }, '', AUTHOR);
+    expect(rec.id).toBe('v-after-failure');
+    expect(store.current().vendors.some((v) => v.id === 'v-after-failure')).toBe(true);
+  });
+
   it('saves a compressed photo and commits it', async () => {
     const dir = await makeDataRepo();
     const store = await ShipStore.open(dir, { now: NOW });

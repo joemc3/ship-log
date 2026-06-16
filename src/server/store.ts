@@ -73,6 +73,9 @@ export class ShipStore {
     return run;
   }
 
+  // If loadDataset throws on a bad serialization, the snapshot stays at the last
+  // good state while disk/git may be ahead — by design; self-heals on the next
+  // successful reload.
   private async reload(): Promise<void> {
     this.snapshot = await loadDataset(this.dir);
   }
