@@ -64,7 +64,10 @@ describe('ShipStore', () => {
     const store = await ShipStore.open(dir, { now: NOW });
     await store.deleteRecord('trip', 't-2024-06-22', AUTHOR);
     expect(store.current().trips.some((t) => t.id === 't-2024-06-22')).toBe(false);
-    expect((await simpleGit(dir).raw(['ls-files', 'trips'])).trim()).toBe('');
+    // The removed file is no longer tracked; other trips in the (enriched) demo
+    // dataset remain committed.
+    const tracked = (await simpleGit(dir).raw(['ls-files', 'trips'])).trim();
+    expect(tracked).not.toContain('t-2024-06-22.md');
   });
 
   it('serializes concurrent writes (single writer, unique ids)', async () => {
@@ -97,6 +100,43 @@ describe('ShipStore', () => {
     const { ref } = await store.savePhoto(png, 'image/png', AUTHOR);
     expect(ref).toMatch(/^photos\/[0-9a-f]{12}\.jpg$/);
     expect((await simpleGit(dir).raw(['ls-files', ref])).trim()).toBe(ref);
+  });
+
+  it('GOLDEN: a write commits ONLY the touched record path, not an unrelated dirty file', async () => {
+    const dir = await makeDataRepo();
+    // An unrelated tracked file gets dirtied out-of-band (simulating e.g. a
+    // concurrent edit / leftover) before a store write runs.
+    writeFileSync(join(dir, 'boat.yaml'), 'name: Tampered\n');
+    const store = await ShipStore.open(dir, { now: NOW });
+    await store.createRecord('vendor', { name: 'Precise' }, '', AUTHOR);
+    const changed = (await simpleGit(dir).raw(['show', '--name-only', '--format=', 'HEAD'])).trim();
+    expect(changed).toBe('vendors/v-precise.md');
+    // boat.yaml's tampering is NOT in the write's commit (still dirty in the tree).
+    const status = await simpleGit(dir).status(['boat.yaml']);
+    expect(status.modified).toContain('boat.yaml');
+  });
+
+  it('GOLDEN: a delete commits ONLY the removed record path', async () => {
+    const dir = await makeDataRepo();
+    writeFileSync(join(dir, 'boat.yaml'), 'name: Tampered\n');
+    const store = await ShipStore.open(dir, { now: NOW });
+    await store.deleteRecord('trip', 't-2024-06-22', AUTHOR);
+    const changed = (await simpleGit(dir).raw(['show', '--name-only', '--format=', 'HEAD'])).trim();
+    expect(changed).toBe('trips/t-2024-06-22.md');
+    const status = await simpleGit(dir).status(['boat.yaml']);
+    expect(status.modified).toContain('boat.yaml');
+  });
+
+  it('GOLDEN: a photo save commits ONLY the photo path', async () => {
+    const dir = await makeDataRepo();
+    writeFileSync(join(dir, 'boat.yaml'), 'name: Tampered\n');
+    const store = await ShipStore.open(dir, { now: NOW });
+    const png = await sharp({ create: { width: 120, height: 90, channels: 3, background: { r: 1, g: 2, b: 3 } } }).png().toBuffer();
+    const { ref } = await store.savePhoto(png, 'image/png', AUTHOR);
+    const changed = (await simpleGit(dir).raw(['show', '--name-only', '--format=', 'HEAD'])).trim();
+    expect(changed).toBe(ref);
+    const status = await simpleGit(dir).status(['boat.yaml']);
+    expect(status.modified).toContain('boat.yaml');
   });
 
   it('persists WITHOUT committing when the data dir is not a git repo', async () => {

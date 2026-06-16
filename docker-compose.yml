@@ -1,0 +1,70 @@
+# Ship's Log — base compose (local-dev shape; the VPS override removes the port
+# and joins the Pangolin tunnel network). One service built from the Dockerfile.
+#
+# Usage (local):   docker compose up --build
+# Usage (VPS):     docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d
+#
+# Two SEPARATE named volumes keep deployment state out of git and out of the image:
+#   - shiplog-users : the hashed-credential users store (USERS_PATH dir). NEVER in
+#                     the data repo, never baked into the image. Back this up.
+#   - shiplog-data  : the data working clone (DATA_DIR). The git layer clones the
+#                     private <boat>-log repo here and pulls/pushes it (P2 sync).
+#
+# Demo mode: leave DATA_REPO_URL / DATA_DIR unset and the app serves the bundled
+# demo/ dataset read-only with auth and sync DISABLED.
+
+services:
+  shiplog:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ship-log:latest
+    restart: unless-stopped
+    environment:
+      # --- Auth / sessions (required outside demo) ----------------------------
+      # Signs the HTTP-only session cookies. Generate once, keep stable, keep secret.
+      # Required at BOOT outside demo (config.ts throws if it's missing) — NOT a
+      # compose-time `:?`, because the VPS override supplies it via SESSION_SECRET_FILE
+      # (a Docker secret), and a hard `:?` here would block that secret-file flow.
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      # First-run owner bootstrap; the owner changes the password in-app afterward.
+      # OWNER_PASSWORD may instead come from OWNER_PASSWORD_FILE (VPS override).
+      OWNER_USERNAME: ${OWNER_USERNAME:-}
+      OWNER_PASSWORD: ${OWNER_PASSWORD:-}
+
+      # --- Data repo / git sync (P2) ------------------------------------------
+      # The private <boat>-log repo the app clones into the data volume. Unset ⇒
+      # demo mode (no clone, sync disabled, read-only).
+      DATA_REPO_URL: ${DATA_REPO_URL:-}
+      # The working clone path INSIDE the container; the data volume mounts here.
+      DATA_DIR: ${DATA_DIR:-/app/data}
+      # Sync scheduler: pull --rebase interval in SECONDS (default 300 = 5 min).
+      # config.ts reads this in seconds (stored internally as ms); unset ⇒ 5 min.
+      PULL_INTERVAL: ${PULL_INTERVAL:-300}
+      # Git credential — exactly one of these, scoped to the single data repo:
+      #   * DATA_SSH_KEY_PATH : path to a mounted read/write deploy key (SSH URL).
+      #   * DATA_REPO_TOKEN   : a fine-grained PAT (HTTPS URL).
+      DATA_SSH_KEY_PATH: ${DATA_SSH_KEY_PATH:-}
+      DATA_REPO_TOKEN: ${DATA_REPO_TOKEN:-}
+
+      # --- Users store --------------------------------------------------------
+      # Lives on the users volume, OUTSIDE the data repo. Default matches config.ts.
+      USERS_PATH: ${USERS_PATH:-/app/var/users.json}
+
+      # --- Server knobs -------------------------------------------------------
+      PORT: 8080
+      # Behind the Pangolin tunnel (TLS terminated upstream) cookies are still
+      # served over https end-to-end; keep COOKIE_SECURE true in production.
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+    volumes:
+      # Users store dir (USERS_PATH's parent). Survives restarts; never in git.
+      - shiplog-users:/app/var
+      # Data working clone (DATA_DIR). Separate volume so data + users never mix.
+      - shiplog-data:/app/data
+    # Local dev only: publish the server. The vps override resets this to nothing.
+    ports:
+      - "8080:8080"
+
+volumes:
+  shiplog-users:
+  shiplog-data:

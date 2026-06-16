@@ -1,0 +1,106 @@
+/*
+ * Page-local styles for VendorsPage — only the few bits the shared app.css has
+ * no global class for (the prototype rendered them with inline styles). The
+ * shared src/ui/styles/app.css is owned by the foundation and is NOT edited here.
+ */
+
+/* The square store-icon medallion atop each vendor card. */
+.medallion {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--ink-700);
+  color: var(--brass-bright);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+/* A contact row: brass icon + the mono value. */
+.contact {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.contactIcon {
+  color: var(--brass-deep);
+  flex: 0 0 auto;
+  display: flex;
+}
+.contactVal {
+  color: var(--ink-700);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.contactLink {
+  color: var(--brass-deep);
+  text-decoration: none;
+}
+.contactLink:hover {
+  color: var(--brass);
+  text-decoration: underline;
+}
+
+/* The reverse cross-link: an open maintenance job referencing this vendor. */
+.job {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: var(--paper-2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  margin-bottom: 6px;
+  color: var(--ink-700);
+  font: inherit;
+}
+.job:hover {
+  background: var(--paper);
+}
+.jobTitle {
+  font-size: 13px;
+  color: var(--ink-700);
+  flex: 1;
+  min-width: 0;
+}
+
+/* Per-card owner controls (edit / delete), tucked to the card's top-right. */
+.cardTools {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+.toolBtn {
+  border: none;
+  background: transparent;
+  color: var(--ink-tint);
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 7px;
+  display: flex;
+}
+.toolBtn:hover {
+  background: var(--paper-2);
+  color: var(--brass-deep);
+}
+
+/* Dashed "add a vendor" prompt card. */
+.addPrompt {
+  margin-top: 22px;
+  text-align: center;
+  padding: 26px;
+  border-style: dashed;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+}
+.addPrompt:hover {
+  border-color: var(--brass);
+}

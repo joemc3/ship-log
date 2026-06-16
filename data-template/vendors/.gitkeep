@@ -1,0 +1,2 @@
+# Keeps this empty collection dir in git. Drop vendor records here as
+# `v-<slug>.md` (one per file). See ../examples/vendor.md for the shape.

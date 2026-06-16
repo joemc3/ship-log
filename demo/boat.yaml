@@ -5,14 +5,36 @@ year: 1985
 hailingPort: Gull Point
 specs:
   loa: "25 ft"
+  lwl: "22 ft 2 in"
+  beam: "8 ft"
   draft: "4 ft (fin keel)"
+  displacement: "4550 lb"
+  ballast: "1900 lb (lead fin)"
+  sailArea: "289 sq ft"
+  mainsailArea: "146 sq ft"
+  jibArea: "143 sq ft"
+  rig: "Masthead sloop"
+  mastHeight: "30 ft above DWL"
+  engine: "Universal M-25 diesel, 21 hp"
+  fuelCapacity: "18 gal diesel"
+  waterCapacity: "20 gal"
+  holdingTank: "12 gal"
+  designer: "Frank Butler / Gerry Douglas"
+  hullNo: 4471
+  sailNo: "CT2-4471"
+  vhfCallSign: "WDJ5821"
+  mmsi: "367123450"
 welcome:
   rules:
     - Life jackets on deck under way.
+    - One hand for you, one for the boat.
     - No bananas aboard. (Skipper's rule.)
-  whatToExpect: A relaxed day sail on a classic Catalina 25.
+    - Tell the skipper before you go forward.
+  whatToExpect: "A relaxed day sail on a classic Catalina 25 out of Gull Point. We usually motor out of the fairway, hoist sail in the bay, and reach toward Gull Point or Heron Island depending on the breeze. Expect 3-5 hours on the water."
   whatToBring:
-    - Soft-soled shoes
-    - Sun protection
-    - A layer for the afternoon breeze
-  safety: PFDs are under the V-berth. Fire extinguisher by the companionway.
+    - Soft-soled non-marking shoes
+    - Sun protection (hat, sunglasses, sunscreen)
+    - A layer for the afternoon sea breeze
+    - Water bottle and a snack
+    - Light rain shell if the sky looks iffy
+  safety: "PFDs are stowed under the V-berth (sizes S-XL). The fire extinguisher is mounted by the companionway steps. Flares and the EPIRB live in the orange ditch bag in the port cockpit locker. VHF is at the nav station — Channel 16 for distress, our call sign is WDJ5821. The seacock for the galley sink is under the sink; the engine raw-water seacock is behind the companionway ladder."

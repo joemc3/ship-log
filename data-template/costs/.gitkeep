@@ -1,0 +1,3 @@
+# Keeps this empty collection dir in git. Drop cost records here as
+# `c-<slug>.md` (one per file). OWNER-ONLY: every cost is redacted server-side
+# for crew/guest. See ../examples/cost.md for the shape.

@@ -71,9 +71,12 @@ describe('write routes — owner CRUD', () => {
     expect(cost.status).toBe(201);
     expect(cost.body.amount).toBe(42.5); // owner sees monetary
 
-    const maint = await agent.post('/api/maintenance').send({ title: 'Bottom paint', status: 'scheduled', costEst: 300 });
+    // Use a title that doesn't collide with the (enriched) demo dataset, so the
+    // derived id is exactly its slug — this test is about owner CRUD + keeping
+    // monetary fields, not collision suffixing (covered separately below).
+    const maint = await agent.post('/api/maintenance').send({ title: 'Replace cabin fan', status: 'scheduled', costEst: 300 });
     expect(maint.status).toBe(201);
-    expect(maint.body.id).toBe('m-bottom-paint');
+    expect(maint.body.id).toBe('m-replace-cabin-fan');
     expect(maint.body.costEst).toBe(300);
 
     const upd = await agent.put(`/api/maintenance/${maint.body.id}`).send({ priority: 2 });

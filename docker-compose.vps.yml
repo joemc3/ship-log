@@ -1,0 +1,62 @@
+# Ship's Log — VPS override (mirrors the DA-RAG deployment).
+#
+# Layer this OVER the base compose:
+#   docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d
+#
+# What it changes versus the base:
+#   1. Publishes NO host ports — the only ingress is the Pangolin tunnel. The
+#      no-exposed-ports security property is the whole point of the VPS shape.
+#   2. Attaches the service to the EXTERNAL `pangolin` network (managed by the
+#      tunnel stack) with a pinned high static IP so Gerbil's IPAM does not hand
+#      the slot to another container.
+#   3. Sources SESSION_SECRET + the owner bootstrap from Docker secrets, and
+#      mounts the git deploy key as a secret file (DATA_SSH_KEY_PATH points at it).
+#
+# Pangolin is a plain tunnel (no SSO): the app is reachable publicly through it
+# and gates itself (app-level auth + server-side cost redaction). Reaching the app
+# only via the tunnel is the security boundary.
+
+services:
+  shiplog:
+    # Reset the base port mapping to nothing — publish no host ports on the VPS.
+    # `!reset []` clears the sequence the base file set rather than appending.
+    ports: !reset []
+
+    networks:
+      pangolin:
+        # PROVISIONAL IP — 172.18.0.22 is a placeholder in the assumed pangolin
+        # subnet (172.18.0.0/16). It MUST be reconciled with Joe's Gerbil IPAM /
+        # actual subnet before deploy: confirm the network's subnet, pick a high
+        # static address outside the DHCP range, and update both this value and
+        # the Pangolin/Gerbil target so the tunnel routes to the right container.
+        ipv4_address: 172.18.0.22
+
+    environment:
+      # Override the env-interpolated values from the base with the secret-file
+      # contents (Docker mounts each secret at /run/secrets/<name>).
+      SESSION_SECRET_FILE: /run/secrets/session_secret
+      OWNER_PASSWORD_FILE: /run/secrets/owner_password
+      # The git deploy key (read/write, scoped to the single data repo) is mounted
+      # as a secret; point the git layer at it. Use an SSH DATA_REPO_URL with this.
+      DATA_SSH_KEY_PATH: /run/secrets/data_deploy_key
+
+    secrets:
+      - session_secret
+      - owner_password
+      - data_deploy_key
+
+networks:
+  # Provided by the Pangolin/Gerbil tunnel stack; not created by this compose.
+  pangolin:
+    external: true
+
+secrets:
+  # Cookie-signing secret. Provide out-of-band on the VPS (file or external secret).
+  session_secret:
+    file: ./secrets/session_secret
+  # First-run owner bootstrap password (username stays plain env: OWNER_USERNAME).
+  owner_password:
+    file: ./secrets/owner_password
+  # SSH deploy key for the private <boat>-log data repo (read/write, repo-scoped).
+  data_deploy_key:
+    file: ./secrets/data_deploy_key

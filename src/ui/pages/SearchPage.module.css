@@ -1,0 +1,45 @@
+/* Page-local styles for SearchPage — only the pieces the shared app.css has no
+   global class for (the prototype rendered them with inline styles). The shared
+   src/ui/styles/app.css is owned by the foundation and is NOT edited here. */
+
+/* The big rounded free-text search bar (mirrors the prototype's pill). */
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--paper-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 30px;
+  padding: 11px 18px;
+}
+.searchBar:focus-within {
+  border-color: var(--brass);
+  box-shadow: var(--shadow-sm);
+}
+.searchInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  color: var(--ink-900);
+  min-width: 0;
+}
+.searchInput::placeholder {
+  color: var(--ink-tint);
+}
+
+/* The clear (×) button inside the bar. */
+.clearBtn {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--ink-tint);
+  display: flex;
+  padding: 2px;
+}
+.clearBtn:hover {
+  color: var(--ink-700);
+}

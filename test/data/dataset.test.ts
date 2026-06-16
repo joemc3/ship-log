@@ -16,7 +16,8 @@ describe('loadDataset', () => {
     expect(ds.maintenance.map((m) => m.id)).toContain('m-jib-halyard');
     expect(ds.costs.map((c) => c.id)).toContain('c-jib-halyard');
     expect(ds.vendors.map((v) => v.id)).toContain('v-sailloft');
-    expect(ds.inventory).toHaveLength(2);
+    expect(ds.inventory.map((i) => i.id)).toContain('inv-fire-ext');
+    expect(ds.inventory.map((i) => i.id)).toContain('inv-flares');
     expect(ds.manuals.map((m) => m.id)).toContain('man-engine');
     expect(ds.quickref.map((q) => q.id)).toContain('qr-reef');
   });

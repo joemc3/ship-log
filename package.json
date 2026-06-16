@@ -5,9 +5,12 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.ui.json",
     "start": "tsx src/server/index.ts",
-    "dev": "tsx watch src/server/index.ts"
+    "dev": "tsx watch src/server/index.ts",
+    "dev:ui": "vite --config src/ui/vite.config.ts",
+    "build:ui": "vite build --config src/ui/vite.config.ts",
+    "preview:ui": "vite preview --config src/ui/vite.config.ts"
   },
   "keywords": [],
   "author": "",
@@ -26,14 +29,25 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.1.0",
     "@types/node": "^22.19.21",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
     "@types/supertest": "^7.2.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "jsdom": "^26.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.0",
     "supertest": "^7.2.2",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
+    "vite": "^7.3.5",
     "vitest": "^4.1.9"
   }
 }

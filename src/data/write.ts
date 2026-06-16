@@ -51,8 +51,13 @@ export function slugify(input: string): string {
     .replace(/^-|-$/g, '');
 }
 
-// The field each non-trip collection slugs its id from.
-const SLUG_SOURCE: Record<Exclude<CollectionName, 'trip'>, string> = {
+/**
+ * The field each non-trip collection slugs its id from. Trips slug from `date`
+ * (see `deriveId`), so they are intentionally absent here; the descriptor in
+ * `describe.ts` re-exposes both this map and the trip case. This is the one
+ * source of truth — read it rather than hand-transcribing slug sources.
+ */
+export const SLUG_SOURCE: Record<Exclude<CollectionName, 'trip'>, string> = {
   maintenance: 'title',
   cost: 'item',
   vendor: 'name',
@@ -60,7 +65,12 @@ const SLUG_SOURCE: Record<Exclude<CollectionName, 'trip'>, string> = {
   manual: 'title',
 };
 
-const ID_PREFIX: Record<Exclude<CollectionName, 'trip'>, string> = {
+/**
+ * The id prefix per non-trip collection. Trips use `t-` (a literal in
+ * `deriveId`). The descriptor in `describe.ts` re-exposes both. Source of
+ * truth — read it rather than hand-transcribing prefixes.
+ */
+export const ID_PREFIX: Record<Exclude<CollectionName, 'trip'>, string> = {
   maintenance: 'm-',
   cost: 'c-',
   vendor: 'v-',
