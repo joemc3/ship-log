@@ -4,16 +4,54 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import TripsPage from './TripsPage.js';
 import { api } from '../lib/api.js';
+import { useSession, type Session } from '../state/session.js';
 import type { TripRec } from '../lib/types.js';
 
-// The page only ever calls api.trips()/api.trip(); mock just those so the test
+// The page reads via api.trips() and (for the finding maint-picker) api.maintenance(),
+// and writes via api.createTrip()/api.updateTrip(); mock just those so the test
 // drives the real component against fixed, demo-shaped data.
 vi.mock('../lib/api.js', () => ({
-  api: { trips: vi.fn(), trip: vi.fn() },
+  api: {
+    trips: vi.fn(),
+    trip: vi.fn(),
+    maintenance: vi.fn(),
+    createTrip: vi.fn(),
+    updateTrip: vi.fn(),
+  },
   ApiError: class ApiError extends Error {},
 }));
 
+// Write affordances are gated on the session role (crew/owner write trips; all
+// affordances vanish in demo). Mock the session the same way the Welcome/Shell
+// tests do, defaulting to an authed crew member (the page is read-only for guests).
+vi.mock('../state/session.js', async (orig) => {
+  const actual = await orig<typeof import('../state/session.js')>();
+  return { ...actual, useSession: vi.fn() };
+});
+
 const mockedTrips = vi.mocked(api.trips);
+const mockedMaintenance = vi.mocked(api.maintenance);
+const mockedCreateTrip = vi.mocked(api.createTrip);
+const mockedUpdateTrip = vi.mocked(api.updateTrip);
+const mockedUseSession = vi.mocked(useSession);
+
+/** Build a Session for the mock; defaults to an authed crew member. */
+function session(partial: Partial<Session> = {}): Session {
+  return {
+    loading: false,
+    role: 'crew',
+    username: 'mate',
+    demo: false,
+    ownerConfigured: true,
+    isOwner: false,
+    isCrew: true,
+    isAuthed: true,
+    refresh: vi.fn(),
+    login: vi.fn(),
+    logout: vi.fn(),
+    ...partial,
+  };
+}
 
 /** A rich trip fixture: waypoints, a high finding cross-linking to maintenance,
  *  conditions, crew, photos (already carrying the `photos/` prefix as the real
@@ -50,7 +88,8 @@ const SHAKEDOWN: TripRec = {
   body: 'First sail after the winter layup.',
 };
 
-function renderTrips(initialPath = '/trips'): void {
+function renderTrips(initialPath = '/trips', s?: Session): void {
+  if (s) mockedUseSession.mockReturnValue(s);
   render(
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
@@ -71,6 +110,22 @@ function LocationProbe(): JSX.Element {
 beforeEach(() => {
   mockedTrips.mockReset();
   mockedTrips.mockResolvedValue([PASSAGE, SHAKEDOWN]);
+  mockedMaintenance.mockReset();
+  mockedMaintenance.mockResolvedValue([]);
+  mockedCreateTrip.mockReset();
+  mockedCreateTrip.mockImplementation(async (fields) => ({
+    id: 't-2026-06-16',
+    body: '',
+    ...(fields as object),
+  }) as TripRec);
+  mockedUpdateTrip.mockReset();
+  mockedUpdateTrip.mockImplementation(async (id, patch) => ({
+    id,
+    body: '',
+    ...(patch as object),
+  }) as TripRec);
+  mockedUseSession.mockReset();
+  mockedUseSession.mockReturnValue(session());
 });
 
 describe('TripsPage — list', () => {
@@ -204,5 +259,100 @@ describe('TripsPage — redaction posture (no maintenance costs leak via cross-l
     await waitFor(() => expect(screen.getByText(/Raw-water pump weeping/i)).toBeInTheDocument());
     const detail = screen.getByText('Coastal passage to Heron Cove').closest('.page') ?? document.body;
     expect(within(detail as HTMLElement).queryByText('$')).not.toBeInTheDocument();
+  });
+});
+
+describe('TripsPage — write affordances (crew + owner; never in demo)', () => {
+  it('shows an Add trip affordance for an authed crew member', async () => {
+    renderTrips('/trips', session({ role: 'crew', isCrew: true, isAuthed: true }));
+    await waitFor(() => expect(screen.getByText('Coastal passage to Heron Cove')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /add trip/i })).toBeInTheDocument();
+  });
+
+  it('shows an Add trip affordance for the owner too (same trip-write scope)', async () => {
+    renderTrips('/trips', session({ role: 'owner', isOwner: true, isCrew: false, isAuthed: true }));
+    await waitFor(() => expect(screen.getByText('Coastal passage to Heron Cove')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /add trip/i })).toBeInTheDocument();
+  });
+
+  it('hides every write affordance in demo mode', async () => {
+    renderTrips('/trips', session({ role: 'owner', isOwner: true, isAuthed: true, demo: true }));
+    await waitFor(() => expect(screen.getByText('Coastal passage to Heron Cove')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /add trip/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /edit trip/i })).not.toBeInTheDocument();
+  });
+
+  it('hides the Add trip affordance for an anonymous guest', async () => {
+    renderTrips('/trips', session({ role: 'guest', isCrew: false, isOwner: false, isAuthed: false }));
+    await waitFor(() => expect(screen.getByText('Coastal passage to Heron Cove')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /add trip/i })).not.toBeInTheDocument();
+  });
+
+  it('a date-only submit calls api.createTrip with just { date } (partial entries are first-class)', async () => {
+    const user = userEvent.setup();
+    renderTrips('/trips', session({ role: 'crew', isCrew: true, isAuthed: true }));
+    await waitFor(() => expect(screen.getByText('Coastal passage to Heron Cove')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /add trip/i }));
+    // The only required field is the date; everything else is left blank.
+    const date = await screen.findByLabelText(/date/i);
+    await user.clear(date);
+    await user.type(date, '2026-06-16');
+    await user.click(screen.getByRole('button', { name: /save log/i }));
+
+    await waitFor(() => expect(mockedCreateTrip).toHaveBeenCalledTimes(1));
+    // Blank optionals are OMITTED, not sent as '' — the payload is exactly { date }.
+    expect(mockedCreateTrip.mock.calls[0]![0]).toEqual({ date: '2026-06-16' });
+    // The server derives the id; we never send one.
+    expect(mockedCreateTrip.mock.calls[0]![0]).not.toHaveProperty('id');
+  });
+
+  it('refreshes the trips list after a successful create', async () => {
+    const user = userEvent.setup();
+    renderTrips('/trips', session({ role: 'crew', isCrew: true, isAuthed: true }));
+    await waitFor(() => expect(screen.getByText('Coastal passage to Heron Cove')).toBeInTheDocument());
+    expect(mockedTrips).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: /add trip/i }));
+    const date = await screen.findByLabelText(/date/i);
+    await user.clear(date);
+    await user.type(date, '2026-06-16');
+    await user.click(screen.getByRole('button', { name: /save log/i }));
+
+    // On success the list re-fetches (so the new trip appears) and the form closes.
+    await waitFor(() => expect(mockedTrips).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole('button', { name: /save log/i })).not.toBeInTheDocument());
+  });
+
+  it('opens a prefilled Edit form on a trip and PUTs only the changed/kept fields', async () => {
+    const user = userEvent.setup();
+    mockedTrips.mockResolvedValue([SHAKEDOWN]);
+    renderTrips('/trips/t-2026-04-18', session({ role: 'crew', isCrew: true, isAuthed: true }));
+    await waitFor(() => expect(screen.getByText('First sail after the winter layup.')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /edit trip/i }));
+    // Title prefilled from the record.
+    const title = await screen.findByLabelText(/title/i);
+    expect(title).toHaveValue('Spring shakedown');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(mockedUpdateTrip).toHaveBeenCalledTimes(1));
+    expect(mockedUpdateTrip.mock.calls[0]![0]).toBe('t-2026-04-18');
+    const patch = mockedUpdateTrip.mock.calls[0]![1];
+    // Kept fields are present; blank optionals are omitted (no empty conditions).
+    expect(patch).toMatchObject({ date: '2026-04-18', title: 'Spring shakedown' });
+    expect(patch).not.toHaveProperty('sky');
+    expect(patch).not.toHaveProperty('id');
+  });
+
+  it('still renders the read view + cross-links with writes enabled (no regression)', async () => {
+    const user = userEvent.setup();
+    renderTrips('/trips', session({ role: 'crew', isCrew: true, isAuthed: true }));
+    await waitFor(() => expect(screen.getByText('Coastal passage to Heron Cove')).toBeInTheDocument());
+    await user.click(screen.getByText('Coastal passage to Heron Cove'));
+    // The finding cross-link survives alongside the new Edit affordance.
+    await waitFor(() => expect(screen.getByText(/Raw-water pump weeping/i)).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /work list/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /edit trip/i })).toBeInTheDocument();
   });
 });

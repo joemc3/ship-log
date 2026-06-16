@@ -126,7 +126,18 @@ same change.
   HTTP `status` + the server `{ error }` message, so callers branch on
   401/403/404/409/413/415/429/500 distinctly (crew → `/api/costs` is a 403). It
   has a method for every read in the contract plus `login`/`logout`/
-  `changePassword`; write methods are thin stubs typed for later milestones.
+  `changePassword`, the **owner user-admin** surface
+  (`listUsers`/`createUser(username,password,role)`/`updateUser(username,{role?,
+  password?})`/`deleteUser(username)` → `GET/POST/PUT/DELETE /api/users[/:username]`,
+  owner-only so crew/guest get a 403), and the full write surface (P1d):
+  `createTrip`/`updateTrip`/
+  `deleteTrip`, `completeMaintenance`, owner `create*`/`update*`/`delete*` for
+  maintenance|inventory|vendor|cost|manual (route paths use the **plural**
+  collection dir — `vendor` → `/api/vendors`, `cost` → `/api/costs`), and
+  `uploadPhoto(file)` (multipart field `photo`; we must NOT set `Content-Type`,
+  the browser sets the boundary). `manualFileUrl(file)` builds the `/files/manuals`
+  href. Writes take a `WritePayload` (flat fields + optional `body`); the server
+  derives the id, so callers never send one.
 - **Session (`state/session.tsx`):** on mount it fetches `GET /api/me` (which
   NEVER 401s — pure role/demo discovery) and exposes
   `{ loading, role, isOwner, isCrew, isAuthed(role!=='guest'), demo,
@@ -153,7 +164,33 @@ same change.
   cost row/link; the Costs nav item is hidden for non-owners; never assume the
   costs collection is fetchable as crew.
 
-### Static serving — photos + the built SPA (`src/server/static.ts`)
+### Write form-kit (P1d) — `src/ui/components/forms/`
+
+- The **single reusable kit** every create/edit page composes (one import surface
+  via its barrel `index.ts`). Field primitives — `TextField`, `TextAreaField`
+  (the Markdown `body`), `NumberField`, `DateField` (ISO `YYYY-MM-DD`),
+  `SelectField` (enums, constrained to the schema's value set + a blank "unset"),
+  `StringArrayField` (`crew[]`/`services[]`), and `GroupField` (repeatable object
+  groups like `waypoints[]`/`findings[]`/`sections[]`) — are **controlled**
+  (`value` + `onChange`) and mirror the Zod field shapes in `src/data/schema.ts`.
+  The **`RecordForm`** shell renders title + Save/Cancel and surfaces an
+  `ApiError.message` on a rejected submit (disabling Save while pending, to guard
+  the serial write queue from a double-write). **`PhotoUpload`** calls
+  `api.uploadPhoto`, maps 413/415/400 to friendly copy, and returns the
+  `photos/<hash>.jpg` ref to append to the record's `photos[]` via a follow-up PUT.
+- **`buildPayload(state, opts)` is mandatory before any write.** It OMITS blank
+  optionals (a `''` is **never** sent — partial entries are first-class, e.g. a
+  trip needs only `{ date }`), coerces declared `numbers` (dropping unparseable
+  ones rather than sending `NaN`), trims/compacts declared `arrays`, drops
+  empty/empty-row `objectArrays`, and leaves `body` on the payload for the server
+  to split out. **Never hand-roll a payload** that could ship an empty string.
+- Form styles live in a co-located **`forms.module.css`** (parchment tokens from
+  `app.css`); the shared `app.css` is **never** edited.
+- **Crew never sees a cost input:** pages must not render a cost field
+  (`maintenance.costEst`, the whole `cost` collection) for crew/guest — mirror the
+  read-side redaction posture on the write side.
+
+### Static serving — photos, manual files + the built SPA (`src/server/static.ts`)
 
 - **`GET /photos/:name`** streams a binary from `<dataDir>/photos/` (the demo dir
   in demo mode). It is **path-traversal-safe** (single path segment only; the
@@ -162,15 +199,25 @@ same change.
   extension, and under the **same auth posture as reads**: open in demo,
   `requireAuth` otherwise. Photos are binaries — they carry no monetary JSON, so
   the redaction-golden invariant is unaffected.
+- **`GET /files/manuals/:name`** (`registerManualRoute`, P1d) streams a manual's
+  `file:` (PDF/markdown/etc.) from `<dataDir>/manuals/` with the **same hardening
+  and auth posture** as the photo route. It is **scoped to `manuals/` only** — it
+  is deliberately NOT a generic data-dir file server, so it can never reach
+  `costs/*.md`; manuals carry no monetary data, so redaction-golden stays intact.
+  Content type comes from a small document allowlist (`.pdf`/`.md`/`.txt`/image).
+  The SPA builds the href via `api.manualFileUrl(file)` (strips a leading
+  `manuals/` and encodes the name). **Do not** widen this into a generic
+  `/files/:collection/:name` server.
 - **Built-SPA serving:** `registerSpaStatic` serves `config.clientDir`
   (`CLIENT_DIR`, defaulting to `dist/ui` when present) with a **history-fallback**
   — a request for a real built asset streams that file, anything else returns
   `index.html` so client routes deep-link. It is a **no-op** when no build is
   configured.
-- **Never shadow `/api`:** in `createApp` the order is API routes → an
-  `/api`+`/photos`-scoped JSON 404 → the SPA static handler (which also ignores
-  `/api`+`/photos`) → a final JSON 404. An unknown `/api/*` path is therefore
-  always a JSON 404, never `index.html`.
+- **Never shadow `/api`, `/photos`, or `/files`:** in `createApp` the order is API
+  routes → an `/api`+`/photos`+`/files`-scoped JSON 404 → the SPA static handler
+  (which also ignores all three) → a final JSON 404. An unknown `/api/*`,
+  `/photos/*`, or `/files/*` path is therefore always a JSON 404, never
+  `index.html`.
 
 ### Pages (P1d) — `src/ui/pages/`
 
@@ -211,3 +258,55 @@ same change.
   (list/detail render, finding cross-link navigates, photos resolve to the
   `/photos` URL, Markdown bold renders as `<strong>`, deep-link + focus open the
   detail, and no money/cost row ever appears for owner- or crew-shaped trips).
+
+- **`MaintenancePage.tsx`** is the priority-queue + status-board read view + an
+  item detail (routes `/maintenance`, `/maintenance/:id`). It sources
+  `GET /api/maintenance` + `GET /api/derived` (the inventory tasks that surface in
+  the queue) + `GET /api/vendors` + `GET /api/trips` (the last two feed the owner
+  form pickers). **Cost redaction degrades gracefully:** `costEst` is stripped
+  server-side for crew/guest, so when absent the page renders NO cost row, NO cost
+  cross-link, and omits the "Est. outstanding" rollup — never `$NaN`. **Write
+  affordances are role-correct and hidden in demo** (every write is
+  `denyInDemo`): crew **and** owner get a real **Mark complete** control on a
+  not-done item (an inline panel → `POST /api/maintenance/:id/complete
+  { completed (default today), note? }`, which can never touch `costEst`); **owner
+  only** gets full **create** ("Add item") / **edit** (incl. the `costEst` input +
+  vendor + source-trip pickers) via the form-kit, and a confirm-guarded
+  **delete** (`DELETE /api/maintenance/:id`). Crew never sees a cost input, an
+  edit, or a delete (the API 403s them anyway). Every successful write refreshes
+  the dataset (a `reloadKey` re-runs the load effect). Gating reads from
+  `useSession()` (`isOwner`/`isCrew`/`demo`). Page-local styles live in
+  `MaintenancePage.module.css`; the shared `app.css` is untouched. Tested in
+  `MaintenancePage.test.tsx` against mocked `api` + `useSession` (crew sees
+  Mark-complete but no delete/`costEst`/edit; owner sees full edit + delete; demo
+  shows no write affordances; the cost redaction contract holds).
+
+### Auth screens (P1d) — `src/ui/pages/{LoginPage,AccountPage,AdminPage}.tsx`
+
+- **`LoginPage.tsx`** (route `/login`, gated to a non-demo guest by `LoginRoute`)
+  POSTs `/api/login` via `session.login(u,p)` (which refreshes `/api/me` so the
+  tree re-renders on the authoritative role), then redirects to the attempted
+  path (`location.state.from`, set by `RequireAuth`), defaulting to `/`. **Error
+  copy is GENERIC by design** — a wrong username and a wrong password both surface
+  the same "didn't match, check and try again" line, mirroring the server's flat
+  401 (`invalid credentials`) so there is **no user-enumeration**; a **429** is the
+  one distinct case (a "too many attempts, wait a moment" notice). In demo the
+  form is disabled with a read-only notice (login is a server 400 there).
+- **`AccountPage.tsx`** (route `/account`, any authed user) POSTs `/api/password
+  { currentPassword, newPassword }` via `api.changePassword`. It mirrors the
+  server's **min-8** rule client-side (an obviously-short new password never
+  round-trips; the server still re-checks), shows a success status, and surfaces
+  the server 400 (`invalid current password`) verbatim. Demo disables it (400).
+- **`AdminPage.tsx`** (route `/admin`, **owner-only** — `RequireOwner` + a server
+  403) drives the four user endpoints: `GET /api/users` (the table),
+  `POST /api/users` (add: username + **temporary** password the owner shares +
+  role), `PUT /api/users/:username` (set role and/or **reset** password, via a
+  modal), `DELETE /api/users/:username` (a confirm-modal-guarded remove). The
+  server owns the invariants and they read straight back: **409** (`cannot
+  demote/delete the last owner`, duplicate username), **404** (`no such user`),
+  **400** (validation). After every successful mutation the list is **re-fetched**
+  so the table reflects the authoritative server state. All three pages reuse the
+  global `app.css` classes (no page-local stylesheet) and are tested in their
+  `*.test.tsx` against mocked `api`/`useSession` (login success + 401 generic +
+  429; change-password success + min-8 + wrong-current; admin list + create/
+  update/delete happy paths + each error status).

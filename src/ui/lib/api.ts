@@ -22,6 +22,8 @@ import type {
   SearchHit,
   Derived,
   LoginResult,
+  User,
+  AssignableRole,
 } from './types.js';
 
 /** A normalized API failure: HTTP status + the server's error message. */
@@ -79,6 +81,30 @@ function postJson<T>(path: string, body: unknown): Promise<T> {
   });
 }
 
+function putJson<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+function del(path: string): Promise<void> {
+  return request<void>(path, { method: 'DELETE' });
+}
+
+/** Encode a record id for safe interpolation into a route path. */
+const eid = (id: string): string => encodeURIComponent(id);
+
+/**
+ * A write payload: flat frontmatter fields, plus an optional Markdown `body`.
+ * The server derives the record id (we never send one), validates against the
+ * Zod schema, and redacts the response by role — so a crew/guest write response
+ * never carries a monetary field. Callers build this via the form-kit's
+ * `buildPayload`, which OMITS blank optionals (partial entries are first-class).
+ */
+export type WritePayload = Record<string, unknown> & { body?: string };
+
 export const api = {
   // ---- discovery / public ----
   me: () => get<Me>('/api/me'),
@@ -101,6 +127,15 @@ export const api = {
   costs: () => get<CostRec[]>('/api/costs'),
   cost: (id: string) => get<CostRec>(`/api/costs/${encodeURIComponent(id)}`),
 
+  // ---- served files (not JSON): a manual's PDF/markdown, scoped to manuals/ ----
+  // A record's `file:` field is stored as `manuals/<name>` (or a bare name); the
+  // /files/manuals/:name route serves it root-anchored under the same auth
+  // posture as reads. This builds the href; the browser GETs it directly.
+  manualFileUrl: (file: string): string => {
+    const name = file.replace(/^\/+/, '').replace(/^manuals\//, '');
+    return `/files/manuals/${encodeURIComponent(name)}`;
+  },
+
   // ---- auth ----
   login: (username: string, password: string) =>
     postJson<LoginResult>('/api/login', { username, password }),
@@ -112,17 +147,63 @@ export const api = {
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
 
-  // ---- writes (thin stubs typed for later milestones) ----
-  createTrip: (fields: Record<string, unknown> & { body?: string }) =>
-    postJson<TripRec>('/api/trips', fields),
-  updateTrip: (id: string, patch: Record<string, unknown>) =>
-    request<TripRec>(`/api/trips/${encodeURIComponent(id)}`, {
+  // ---- user administration (owner-only; crew/guest => 403) ----
+  // The list never carries a password hash. Create takes a temp password the new
+  // user changes via /account; update sets a role and/or resets a password (omit
+  // a field to leave it unchanged). Delete + last-owner/self guards surface as
+  // 409; an unknown username as 404; validation as 400.
+  listUsers: () => get<User[]>('/api/users'),
+  createUser: (username: string, password: string, role: AssignableRole) =>
+    postJson<User>('/api/users', { username, password, role }),
+  updateUser: (username: string, patch: { role?: AssignableRole; password?: string }) =>
+    request<void>(`/api/users/${eid(username)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
     }),
+  deleteUser: (username: string) => del(`/api/users/${eid(username)}`),
+
+  // ---- writes: trips (crew + owner) ----
+  // The server derives the id from `date` (do NOT send one) and splits out
+  // `body`. A partial trip is first-class: { date } alone is valid.
+  createTrip: (fields: WritePayload) => postJson<TripRec>('/api/trips', fields),
+  updateTrip: (id: string, patch: WritePayload) => putJson<TripRec>(`/api/trips/${eid(id)}`, patch),
+  // All deletes are owner-only server-side (crew gets 403) — including trips.
+  deleteTrip: (id: string) => del(`/api/trips/${eid(id)}`),
+
+  // ---- writes: maintenance complete (crew + owner; never touches costEst) ----
   completeMaintenance: (id: string, opts: { completed?: string; note?: string } = {}) =>
-    postJson<MaintenanceRec>(`/api/maintenance/${encodeURIComponent(id)}/complete`, opts),
+    postJson<MaintenanceRec>(`/api/maintenance/${eid(id)}/complete`, opts),
+
+  // ---- writes: owner-only CRUD on the remaining collections ----
+  // Route paths use the PLURAL collection dir (vendor -> /api/vendors, etc.),
+  // matching the server's COLLECTION_DIR map.
+  createMaintenance: (fields: WritePayload) => postJson<MaintenanceRec>('/api/maintenance', fields),
+  updateMaintenance: (id: string, patch: WritePayload) =>
+    putJson<MaintenanceRec>(`/api/maintenance/${eid(id)}`, patch),
+  deleteMaintenance: (id: string) => del(`/api/maintenance/${eid(id)}`),
+
+  createInventory: (fields: WritePayload) => postJson<InventoryRec>('/api/inventory', fields),
+  updateInventory: (id: string, patch: WritePayload) =>
+    putJson<InventoryRec>(`/api/inventory/${eid(id)}`, patch),
+  deleteInventory: (id: string) => del(`/api/inventory/${eid(id)}`),
+
+  createVendor: (fields: WritePayload) => postJson<VendorRec>('/api/vendors', fields),
+  updateVendor: (id: string, patch: WritePayload) => putJson<VendorRec>(`/api/vendors/${eid(id)}`, patch),
+  deleteVendor: (id: string) => del(`/api/vendors/${eid(id)}`),
+
+  createCost: (fields: WritePayload) => postJson<CostRec>('/api/costs', fields),
+  updateCost: (id: string, patch: WritePayload) => putJson<CostRec>(`/api/costs/${eid(id)}`, patch),
+  deleteCost: (id: string) => del(`/api/costs/${eid(id)}`),
+
+  createManual: (fields: WritePayload) => postJson<ManualRec>('/api/manuals', fields),
+  updateManual: (id: string, patch: WritePayload) => putJson<ManualRec>(`/api/manuals/${eid(id)}`, patch),
+  deleteManual: (id: string) => del(`/api/manuals/${eid(id)}`),
+
+  // ---- writes: photos (crew + owner) ----
+  // Multipart field "photo"; the browser sets the multipart boundary, so we must
+  // NOT set Content-Type ourselves. Returns { ref:'photos/<hash>.jpg' } to append
+  // to a record's photos[] via a subsequent PUT.
   uploadPhoto: (file: File) => {
     const form = new FormData();
     form.append('photo', file);

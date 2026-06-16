@@ -49,17 +49,26 @@ npm run preview:ui  # serve the built bundle locally
 
 For local development run the API and the UI together: `npm run dev` (or
 `npm start`) for the Express server on :8080, and `npm run dev:ui` in a second
-terminal. The Vite dev server proxies `/api` and `/photos` to :8080, so the SPA
-runs against the real server in demo mode. The original design prototype lives in
+terminal. The Vite dev server proxies `/api`, `/photos`, and `/files` to :8080,
+so the SPA runs against the real server in demo mode. The original prototype lives in
 `docs/prototype/` (the design-token system in `app.css` is ported verbatim to
 `src/ui/styles/app.css`).
 
 In production the Express server serves the built SPA itself: `npm run build:ui`
 emits `dist/ui`, and the server (`src/server/static.ts`) serves it with a
-history-fallback — any non-`/api`, non-`/photos` route returns `index.html` so
-client-side routes deep-link cleanly, while unknown `/api/*` paths still return a
-JSON 404 (the SPA never shadows the API). Point the server at a build with
+history-fallback — any non-`/api`, non-`/photos`, non-`/files` route returns
+`index.html` so client-side routes deep-link cleanly, while unknown `/api/*`,
+`/photos/*`, and `/files/*` paths still return a JSON 404 (the SPA never shadows
+the API or the served-file routes). Point the server at a build with
 `CLIENT_DIR`; by default it serves `dist/ui` if that directory exists.
+
+Two binary surfaces stream alongside the API, both traversal-safe and under the
+read auth posture (open in demo, `requireAuth` otherwise): `GET /photos/:name`
+(record photos from `<dataDir>/photos/`) and `GET /files/manuals/:name` (a
+manual's PDF/markdown from `<dataDir>/manuals/`). The manual route is scoped to
+`manuals/` **only** — it is not a generic data-dir file server, so it can never
+reach `costs/*.md`; manuals carry no monetary data, so the redaction invariant is
+unaffected. The SPA links to a manual via `api.manualFileUrl(file)`.
 
 The SPA is structured as: `lib/` (typed API client + record types re-exported
 type-only from `src/data/schema.ts` + display formatters), `state/session.tsx`
@@ -84,6 +93,31 @@ findings (each with a severity badge and, when linked, a cross-link to
 small, dependency-free, XSS-safe renderer (`pages/Markdown.tsx`, React elements
 only — no raw HTML). `?focus=<id>` / `/trips/:id` open + highlight a trip.
 Trips carry no costs, so the page is identical for every authenticated role.
+
+`pages/MaintenancePage.tsx` is the priority-queue + status-board read view + an
+item detail (routes `/maintenance`, `/maintenance/:id`), sourcing
+`GET /api/maintenance` + `/api/derived` (+ `/api/vendors` and `/api/trips` for
+the owner form's vendor/source-trip pickers). The owner-only `costEst` is
+stripped server-side for crew/guest, so when absent the page shows no cost row,
+no cost link, and no "Est. outstanding" stat (never `$NaN`). Role-correct write
+affordances — all hidden in demo: crew **and** owner get a **Mark complete**
+control (→ `POST /api/maintenance/:id/complete`, never touching `costEst`);
+**owner only** gets create ("Add item") / edit (incl. the `costEst` input +
+vendor/source-trip pickers) and a confirm-guarded delete. Each write refreshes
+the list.
+
+`pages/LoginPage.tsx` (route `/login`, non-demo guests only) POSTs `/api/login`
+and redirects to the originally-attempted path. Its error copy is deliberately
+**generic** — a wrong username and a wrong password yield the same message (no
+user-enumeration, mirroring the server's 401) — with a distinct "too many
+attempts" notice on a 429 rate-limit; demo disables the form.
+`pages/AccountPage.tsx` (route `/account`, any authed user) changes the password
+via `POST /api/password`, mirrors the server's 8-char minimum client-side, and
+surfaces success and the wrong-current-password error. `pages/AdminPage.tsx`
+(route `/admin`, **owner-only**) is the user admin: list / add (with a temporary
+password) / set-role / reset-password / delete against `/api/users`, reading the
+server's last-owner (409), no-such-user (404), and validation (400) guards
+straight back and re-fetching the list after each change.
 
 Environment:
 
@@ -125,20 +159,32 @@ so monetary fields never reach a crew/guest response.
   `redact` (role-scoped dataset view + per-record redaction), `middleware`,
   `store` (`ShipStore`: in-memory snapshot + serial write queue + reload), `git`
   (local commit), `photos` (`sharp` compression), `static` (traversal-safe photo
-  streaming + built-SPA serving with history-fallback), `routes/` (auth, data,
-  admin, writes), `app` (`createApp` factory), `index` (boot). Imports the data
-  layer only from `src/data/index.ts`.
+  + manual-file streaming, scoped to `photos/` and `manuals/` respectively, plus
+  built-SPA serving with history-fallback), `routes/` (auth, data, admin, writes),
+  `app` (`createApp` factory), `index` (boot). Imports the data layer only from
+  `src/data/index.ts`.
 - `src/ui/` — the SPA (Vite + React 18 + TS): `main.tsx` (React 18 `createRoot`),
   `App.tsx` → `AppRouter.tsx` (session + router + shell), `lib/` (`api.ts` typed
   fetch client, `types.ts` type-only record re-exports, `format.ts` formatters),
   `state/session.tsx` (auth/role context), `components/` (`Shell.tsx`, `Icon.tsx`,
-  `atoms.tsx`), `pages/` (one component per page), `styles/app.css` (the design
-  system, ported from the prototype), `vite.config.ts` (root `src/ui`, builds to
-  `dist/ui`, dev proxy to :8080), `index.html`, and `test/setup.ts` (jest-dom for
-  the jsdom suite).
+  `atoms.tsx`, and `forms/` — the reusable write form-kit), `pages/` (one component
+  per page), `styles/app.css` (the design system, ported from the prototype),
+  `vite.config.ts` (root `src/ui`, builds to `dist/ui`, dev proxy to :8080),
+  `index.html`, and `test/setup.ts` (jest-dom for the jsdom suite).
+- `src/ui/components/forms/` — the write form-kit (one import surface via its
+  barrel `index.ts`): field primitives (`TextField`, `TextAreaField` for the
+  Markdown `body`, `NumberField`, `DateField`, `SelectField`, `StringArrayField`,
+  `GroupField` for repeatable object groups like waypoints[]/findings[]/
+  sections[]), the `RecordForm` shell (title + Save/Cancel + an `ApiError.message`
+  error surface), `PhotoUpload` (calls `api.uploadPhoto`, surfaces 413/415/400
+  friendly errors, returns the `photos/<hash>.jpg` ref to append to photos[]), and
+  `buildPayload` — which OMITS blank optionals (never sends `''`; partial entries
+  are first-class), coerces declared numbers/arrays, and leaves `body` for the
+  server to split out. Co-located `forms.module.css` (never touches `app.css`).
 - `test/data/` — Vitest unit tests for the data layer.
 - `test/server/` — Vitest + supertest tests for the server (auth, reads, redaction,
-  admin, demo, writes, store, git, photos, static photo/SPA serving).
+  admin, demo, writes, store, git, photos, static photo/SPA serving, manual-file
+  streaming).
 - UI tests live next to the code as `src/ui/**/*.test.tsx`; `vitest.config.ts`
   runs them as a second jsdom project alongside the node server/data project.
 - `demo/` — a sample "Valkyrie" dataset used by tests and demo mode.

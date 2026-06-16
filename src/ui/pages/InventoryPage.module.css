@@ -1,0 +1,83 @@
+/*
+ * Page-local styles for InventoryPage — only the few bits the shared app.css has
+ * no global class for (the prototype rendered them with inline styles). The
+ * shared src/ui/styles/app.css is owned by the foundation and is NOT edited here.
+ */
+
+/* Detail two-column layout, collapsing on narrow screens. */
+.detailGrid {
+  grid-template-columns: 1.4fr 1fr;
+}
+@media (max-width: 760px) {
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* A whole card that acts as a navigation control (the owner Costs cross-link). */
+.linkCard {
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.linkCard:hover {
+  border-color: var(--brass);
+}
+
+/* Real photo tile (replaces the prototype placeholder). */
+.photo {
+  width: 100%;
+  height: 96px;
+  object-fit: cover;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--parchment-2);
+  display: block;
+}
+
+/* The category/attention filter segmented control. */
+.filter {
+  display: flex;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 30px;
+  padding: 4px;
+}
+.filterBtn {
+  border: none;
+  cursor: pointer;
+  border-radius: 24px;
+  padding: 7px 15px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 13px;
+  background: transparent;
+  color: var(--ink-600);
+}
+.filterBtnOn {
+  background: var(--ink-700);
+  color: #fff;
+}
+
+/* Row chevron rendered as an accessible button (open-detail affordance). */
+.rowGo {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--ink-tint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+}
+.rowGo:hover {
+  color: var(--brass-deep);
+}
+
+/* Confirm-delete dialog overlay (mirrors the app's .overlay surface). */
+.confirmCard {
+  width: min(420px, 92vw);
+  padding: 24px;
+}

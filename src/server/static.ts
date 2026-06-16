@@ -27,6 +27,18 @@ const PHOTO_CONTENT_TYPES: Record<string, string> = {
   '.webp': 'image/webp',
 };
 
+/** Content types for served manual files (the records' `file:` field). Scoped to
+ *  document-ish types — manuals carry NO monetary data, so this route is safe for
+ *  the redaction-golden invariant; it is NOT a generic data-dir file server. */
+const MANUAL_CONTENT_TYPES: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.md': 'text/markdown; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+};
+
 const SPA_ASSET_CONTENT_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -119,6 +131,62 @@ export function registerPhotoRoute(app: Express, ctx: AppContext): void {
 }
 
 /**
+ * GET /files/manuals/:name — stream a manual file from <dataDir>/manuals/ (the
+ * demo dir in demo mode). Mirrors the photo route's hardening: a single path
+ * segment (no nesting), decoded + re-checked for traversal, content-typed from a
+ * document allowlist, and the SAME auth posture as reads (open in demo,
+ * requireAuth otherwise).
+ *
+ * Deliberately SCOPED to manuals/ only — it is NOT a generic data-dir file
+ * server, so it can never reach costs/*.md (the redaction-golden invariant stays
+ * intact; manuals carry no monetary data). Registered to never shadow /api or
+ * /photos, and the /files namespace is JSON-404'd before the SPA fallback.
+ */
+export function registerManualRoute(app: Express, ctx: AppContext): void {
+  const { config } = ctx;
+  const manualsRoot = resolve(join(config.dataDir, 'manuals'));
+
+  const guard = config.demo
+    ? (_req: Request, _res: Response, next: NextFunction) => next()
+    : requireAuth;
+
+  // ':name' captures a single segment only; a nested sub-path won't match and
+  // falls through to the /files JSON 404. We still decode + re-check for encoded
+  // traversal that slips a separator into the segment.
+  app.get('/files/manuals/:name', guard, async (req, res) => {
+    const raw = req.params.name;
+    if (typeof raw !== 'string') {
+      res.status(400).json({ error: 'bad manual name' });
+      return;
+    }
+    let name: string;
+    try {
+      name = decodeURIComponent(raw);
+    } catch {
+      res.status(400).json({ error: 'bad manual name' });
+      return;
+    }
+    if (name.includes('/') || name.includes('\\') || name.includes('..') || name.includes('\0')) {
+      res.status(400).json({ error: 'bad manual name' });
+      return;
+    }
+    const ext = extname(name).toLowerCase();
+    const contentType = MANUAL_CONTENT_TYPES[ext];
+    if (!contentType) {
+      res.status(404).json({ error: 'not found' });
+      return;
+    }
+    const abs = resolve(join(manualsRoot, name));
+    if (!isInside(manualsRoot, abs)) {
+      res.status(400).json({ error: 'bad manual name' });
+      return;
+    }
+    const ok = await streamFile(res, abs, contentType);
+    if (!ok) res.status(404).json({ error: 'not found' });
+  });
+}
+
+/**
  * Serve the built SPA from `config.clientDir` (dist/ui) with history-fallback.
  * Registered LAST (after the API JSON-404), and it explicitly ignores /api and
  * /photos so it can never hijack them. A request for a real asset streams that
@@ -132,9 +200,16 @@ export function registerSpaStatic(app: Express, ctx: AppContext): void {
   const indexHtml = join(root, 'index.html');
 
   app.get(/.*/, async (req, res, next) => {
-    // Never touch the API or photo namespaces (defense in depth — these are
-    // already handled above, but a stray match must fall through to JSON 404).
-    if (req.path.startsWith('/api') || req.path.startsWith('/photos')) return next();
+    // Never touch the API, photo, or served-file namespaces (defense in depth —
+    // these are already handled above, but a stray match must fall through to a
+    // JSON 404 rather than serving index.html for an API/asset request).
+    if (
+      req.path.startsWith('/api') ||
+      req.path.startsWith('/photos') ||
+      req.path.startsWith('/files')
+    ) {
+      return next();
+    }
 
     // Try the requested path as a real built asset (only when it has a file
     // extension — extensionless paths are client routes, served the SPA shell).

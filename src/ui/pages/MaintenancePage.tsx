@@ -25,10 +25,33 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Icon, type IconName } from '../components/Icon.js';
 import { StatusBadge, Stat, SectionHead, Badge, type BadgeTone } from '../components/atoms.js';
+import {
+  RecordForm,
+  TextField,
+  TextAreaField,
+  NumberField,
+  DateField,
+  SelectField,
+  type SelectOption,
+  buildPayload,
+} from '../components/forms/index.js';
 import { api } from '../lib/api.js';
+import { useSession } from '../state/session.js';
 import { fmtDate, fmtDateShort, fmtMoney } from '../lib/format.js';
-import type { MaintenanceRec, VendorRec, Derived, MaintStatus, InventoryTask } from '../lib/types.js';
+import type { MaintenanceRec, VendorRec, TripRec, Derived, MaintStatus, InventoryTask } from '../lib/types.js';
 import styles from './MaintenancePage.module.css';
+
+/** Today as an ISO YYYY-MM-DD (for defaulting the "completed" date). */
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+const STATUS_OPTIONS: readonly SelectOption[] = [
+  { value: 'overdue', label: 'Overdue' },
+  { value: 'due', label: 'Due soon' },
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'done', label: 'Done' },
+];
 
 /* ---------------------------------------------------------------- body parse */
 
@@ -122,16 +145,269 @@ function dueLabel(task: { tone: QueueTask['tone']; due?: string }, now: Date): s
 
 const TONE_ORDER: Record<QueueTask['tone'], number> = { overdue: 0, due: 1, scheduled: 2 };
 
+/* ============================================================ mark-complete op */
+
+/** The crew + owner "mark complete" control: a button that reveals an inline
+ *  panel with an optional completed-date (defaults to today) + a note, then POSTs
+ *  /api/maintenance/:id/complete. It is a narrow op that can NEVER touch costEst —
+ *  no cost field is ever rendered here. Hidden in demo by the caller. */
+function MaintComplete({ item, onDone }: { item: MaintenanceRec; onDone: () => void }): JSX.Element {
+  const [open, setOpen] = useState(false);
+  const [completed, setCompleted] = useState(todayIso());
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className="btn btn-brass"
+        style={{ justifyContent: 'center' }}
+        onClick={() => setOpen(true)}
+      >
+        <Icon name="check" s={16} />Mark complete
+      </button>
+    );
+  }
+
+  const submit = async (): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.completeMaintenance(item.id, {
+        completed: completed || todayIso(),
+        ...(note.trim() ? { note: note.trim() } : {}),
+      });
+      onDone();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not mark this complete.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card card-pad" data-testid="complete-panel">
+      <div className="eyebrow" style={{ marginBottom: 12 }}>Mark complete</div>
+      {error && (
+        <div className="muted tiny" role="alert" style={{ color: 'var(--sig-overdue)', marginBottom: 10 }}>{error}</div>
+      )}
+      <DateField label="Completed on" value={completed} onChange={setCompleted} />
+      <TextAreaField
+        label="Note"
+        value={note}
+        onChange={setNote}
+        rows={3}
+        placeholder="What was done (optional)"
+      />
+      <div className="flex gap-8" style={{ marginTop: 6 }}>
+        <button type="button" className="btn btn-brass" disabled={busy} onClick={() => void submit()}>
+          <Icon name="check" s={16} />{busy ? 'Saving…' : 'Confirm complete'}
+        </button>
+        <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setOpen(false)}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================ delete control */
+
+/** Owner-only delete with a two-step confirm guarding the destructive op. */
+function MaintDelete({ item, onDeleted }: { item: MaintenanceRec; onDeleted: () => void }): JSX.Element {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const remove = async (): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.deleteMaintenance(item.id);
+      onDeleted();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not delete this item.');
+      setBusy(false);
+    }
+  };
+
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        className="btn btn-ghost"
+        style={{ justifyContent: 'center', color: 'var(--sig-overdue)' }}
+        onClick={() => setConfirming(true)}
+      >
+        <Icon name="close" s={16} />Delete item
+      </button>
+    );
+  }
+
+  return (
+    <div className="card card-pad" data-testid="delete-panel" style={{ borderColor: 'var(--sig-overdue)' }}>
+      <div className="muted tiny" style={{ marginBottom: 10, color: 'var(--ink-700)' }}>
+        Delete this maintenance item? This cannot be undone.
+      </div>
+      {error && (
+        <div className="muted tiny" role="alert" style={{ color: 'var(--sig-overdue)', marginBottom: 10 }}>{error}</div>
+      )}
+      <div className="flex gap-8">
+        <button
+          type="button"
+          className="btn btn-brass"
+          style={{ background: 'var(--sig-overdue)', borderColor: 'var(--sig-overdue)' }}
+          disabled={busy}
+          onClick={() => void remove()}
+        >
+          <Icon name="close" s={16} />{busy ? 'Deleting…' : 'Confirm delete'}
+        </button>
+        <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setConfirming(false)}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================ create / edit form */
+
+interface MaintFormState {
+  title: string;
+  system: string;
+  status: string;
+  priority: string;
+  opened: string;
+  due: string;
+  costEst: string;
+  vendorId: string;
+  fromTripId: string;
+  body: string;
+}
+
+function toFormState(item?: MaintenanceRec): MaintFormState {
+  return {
+    title: item?.title ?? '',
+    system: item?.system ?? '',
+    status: item?.status ?? 'scheduled',
+    priority: item?.priority !== undefined ? String(item.priority) : '',
+    opened: item?.opened ?? '',
+    due: item?.due ?? '',
+    costEst: item?.costEst !== undefined && item?.costEst !== null ? String(item.costEst) : '',
+    vendorId: item?.vendorId ?? '',
+    fromTripId: item?.fromTripId ?? '',
+    body: item?.body ?? '',
+  };
+}
+
+/** Owner-only create/edit form. It exposes the full maintenance shape, INCLUDING
+ *  the monetary costEst input and the vendor + source-trip pickers — affordances
+ *  crew never sees (the caller renders this for owner only; the API 403s crew). */
+function MaintForm({
+  item,
+  vendors,
+  trips,
+  onSaved,
+  onCancel,
+}: {
+  item?: MaintenanceRec;
+  vendors: VendorRec[];
+  trips: TripRec[];
+  onSaved: () => void;
+  onCancel: () => void;
+}): JSX.Element {
+  const [s, setS] = useState<MaintFormState>(() => toFormState(item));
+  const set = <K extends keyof MaintFormState>(k: K, v: MaintFormState[K]): void =>
+    setS((prev) => ({ ...prev, [k]: v }));
+
+  const vendorOptions: SelectOption[] = vendors.map((v) => ({ value: v.id, label: v.name }));
+  const tripOptions: SelectOption[] = trips
+    .slice()
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .map((t) => ({ value: t.id, label: t.title ?? fmtDate(t.date) }));
+
+  const submit = async (): Promise<void> => {
+    const payload = buildPayload(
+      {
+        title: s.title,
+        system: s.system,
+        status: s.status,
+        priority: s.priority,
+        opened: s.opened,
+        due: s.due,
+        costEst: s.costEst,
+        vendorId: s.vendorId,
+        fromTripId: s.fromTripId,
+        body: s.body,
+      },
+      { numbers: ['priority', 'costEst'] },
+    );
+    // `status` is required by the schema; buildPayload would omit it only if blank,
+    // and the select always carries a valid enum, so it is always present here.
+    if (item) await api.updateMaintenance(item.id, payload);
+    else await api.createMaintenance(payload);
+    onSaved();
+  };
+
+  return (
+    <div className="page fade-in">
+      <div className="page-wrap" style={{ maxWidth: 720 }}>
+        <button className="btn btn-ghost" onClick={onCancel} style={{ marginBottom: 18 }}>
+          <Icon name="arrowLeft" s={16} />{item ? 'Back to item' : 'Work list'}
+        </button>
+        <div className="card card-pad">
+          <RecordForm
+            eyebrow={item ? 'Edit maintenance item' : 'New maintenance item'}
+            title={item ? (item.title || 'Edit item') : 'Add to the work list'}
+            onSubmit={submit}
+            onCancel={onCancel}
+          >
+            <TextField label="Title" required value={s.title} onChange={(v) => set('title', v)} placeholder="What needs doing" />
+            <TextField label="System" value={s.system} onChange={(v) => set('system', v)} placeholder="Engine, Hull, Electronics…" />
+            <SelectField label="Status" value={s.status} onChange={(v) => set('status', v)} options={STATUS_OPTIONS} placeholder="Scheduled" />
+            <NumberField label="Priority" value={s.priority} onChange={(v) => set('priority', v)} min={1} step={1} hint="Lower numbers rise to the top of the queue." />
+            <DateField label="Opened" value={s.opened} onChange={(v) => set('opened', v)} />
+            <DateField label="Due" value={s.due} onChange={(v) => set('due', v)} />
+            {/* costEst is OWNER-ONLY — this whole form is owner-gated by the caller. */}
+            <NumberField label="Estimated cost" value={s.costEst} onChange={(v) => set('costEst', v)} min={0} step="0.01" hint="Visible to the owner only." />
+            <SelectField label="Vendor" value={s.vendorId} onChange={(v) => set('vendorId', v)} options={vendorOptions} placeholder="— No vendor —" />
+            <SelectField label="Source trip" value={s.fromTripId} onChange={(v) => set('fromTripId', v)} options={tripOptions} placeholder="— Not from a trip —" />
+            <TextAreaField label="Notes & steps" value={s.body} onChange={(v) => set('body', v)} placeholder={'What’s going on, and a "- [ ]" checklist of steps.'} />
+          </RecordForm>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ============================================================== detail view */
 
 function MaintDetail({
   item,
   vendor,
   onBack,
+  canComplete,
+  canManage,
+  onChanged,
+  onEdit,
+  onDeleted,
 }: {
   item: MaintenanceRec;
   vendor: VendorRec | undefined;
   onBack: () => void;
+  /** Crew + owner (not demo): may mark the item complete. */
+  canComplete: boolean;
+  /** Owner only (not demo): may full-edit + delete. */
+  canManage: boolean;
+  /** Refresh the dataset after a mark-complete. */
+  onChanged: () => void;
+  /** Open the owner edit form. */
+  onEdit: () => void;
+  /** After a delete: refresh + return to the list. */
+  onDeleted: () => void;
 }): JSX.Element {
   const navigate = useNavigate();
   const [done, setDone] = useState<Record<number, boolean>>({});
@@ -306,15 +582,25 @@ function MaintDetail({
               </button>
             )}
 
-            {item.status !== 'done' && (
-              <button
-                className="btn btn-brass"
-                style={{ justifyContent: 'center' }}
-                disabled
-                title="Marking complete arrives in a later milestone"
-              >
-                <Icon name="check" s={16} />Mark complete
-              </button>
+            {/* Mark complete — crew + owner, only on a not-done item, hidden in demo. */}
+            {canComplete && item.status !== 'done' && (
+              <MaintComplete item={item} onDone={onChanged} />
+            )}
+
+            {/* Full edit + delete — owner only, hidden in demo. costEst lives behind
+                this owner gate; crew never sees an edit/delete affordance. */}
+            {canManage && (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ justifyContent: 'center' }}
+                  onClick={onEdit}
+                >
+                  <Icon name="wrench" s={16} />Edit item
+                </button>
+                <MaintDelete item={item} onDeleted={onDeleted} />
+              </>
             )}
           </div>
         </div>
@@ -416,29 +702,49 @@ export default function MaintenancePage(): JSX.Element {
   const [search] = useSearchParams();
   const focus = search.get('focus');
   const openId = id ?? focus ?? null;
+  const { isOwner, isCrew, demo } = useSession();
+
+  // Write capabilities. All writes are denyInDemo server-side, so the UI hides
+  // every affordance in demo. Crew may mark complete + create/edit trips elsewhere;
+  // here crew gets ONLY mark-complete. Owner gets the full create/edit/delete.
+  const canComplete = (isOwner || isCrew) && !demo;
+  const canManage = isOwner && !demo;
 
   const [items, setItems] = useState<MaintenanceRec[] | null>(null);
   const [vendors, setVendors] = useState<VendorRec[]>([]);
+  const [trips, setTrips] = useState<TripRec[]>([]);
   const [derived, setDerived] = useState<Derived | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>('queue');
+  // Owner create/edit form mode: 'create', or an item being edited.
+  const [formMode, setFormMode] = useState<'create' | { editId: string } | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const now = useMemo(() => new Date(), []);
+
+  const reload = (): void => setReloadKey((k) => k + 1);
 
   useEffect(() => {
     let alive = true;
     setError(null);
-    Promise.all([api.maintenance(), api.derived(), api.vendors().catch(() => [] as VendorRec[])])
-      .then(([m, d, v]) => {
+    Promise.all([
+      api.maintenance(),
+      api.derived(),
+      api.vendors().catch(() => [] as VendorRec[]),
+      // Trips power the owner's "source trip" picker; crew/guest never reach the form.
+      api.trips().catch(() => [] as TripRec[]),
+    ])
+      .then(([m, d, v, t]) => {
         if (!alive) return;
         setItems(m);
         setDerived(d);
         setVendors(v);
+        setTrips(t);
       })
       .catch((e: unknown) => {
         if (alive) setError(e instanceof Error ? e.message : 'Failed to load maintenance');
       });
     return () => { alive = false; };
-  }, []);
+  }, [reloadKey]);
 
   const open = openId && items ? items.find((m) => m.id === openId) : undefined;
   const openVendor = open?.vendorId ? vendors.find((v) => v.id === open.vendorId) : undefined;
@@ -527,7 +833,45 @@ export default function MaintenancePage(): JSX.Element {
     );
   }
 
-  if (open) return <MaintDetail item={open} vendor={openVendor} onBack={back} />;
+  // Owner create form (list-level "Add item").
+  if (formMode === 'create' && canManage) {
+    return (
+      <MaintForm
+        vendors={vendors}
+        trips={trips}
+        onSaved={() => { setFormMode(null); reload(); }}
+        onCancel={() => setFormMode(null)}
+      />
+    );
+  }
+
+  // Owner edit form for the open item.
+  if (formMode && formMode !== 'create' && canManage && open) {
+    return (
+      <MaintForm
+        item={open}
+        vendors={vendors}
+        trips={trips}
+        onSaved={() => { setFormMode(null); reload(); }}
+        onCancel={() => setFormMode(null)}
+      />
+    );
+  }
+
+  if (open) {
+    return (
+      <MaintDetail
+        item={open}
+        vendor={openVendor}
+        onBack={back}
+        canComplete={canComplete}
+        canManage={canManage}
+        onChanged={reload}
+        onEdit={() => setFormMode({ editId: open.id })}
+        onDeleted={() => { reload(); back(); }}
+      />
+    );
+  }
 
   return (
     <div className="page fade-in">
@@ -574,9 +918,12 @@ export default function MaintenancePage(): JSX.Element {
               ),
             )}
           </div>
-          <button className="btn btn-brass" disabled title="Adding items arrives in a later milestone">
-            <Icon name="plus" s={16} />Add item
-          </button>
+          {/* Add item — owner only (full create, incl. costEst), hidden in demo. */}
+          {canManage && (
+            <button className="btn btn-brass" onClick={() => setFormMode('create')}>
+              <Icon name="plus" s={16} />Add item
+            </button>
+          )}
         </div>
 
         {items === null && <div className="muted" style={{ padding: '20px 0' }}>Loading the work list…</div>}

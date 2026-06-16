@@ -1,0 +1,171 @@
+/* Form-kit styles — co-located so the shared app.css (owned by the foundation)
+   stays untouched. Everything inherits the parchment palette tokens defined in
+   app.css (--ink-*, --paper*, --line*, --brass*, --sig-*, --r-*, --font-*). */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-tint);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.req {
+  color: var(--sig-overdue);
+  font-size: 12px;
+}
+
+.hint {
+  font-size: 12.5px;
+  color: var(--ink-500);
+  margin: -2px 0 0;
+}
+
+.control,
+.textarea,
+.select {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  color: var(--ink-900);
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  padding: 9px 12px;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.control:focus,
+.textarea:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--brass);
+  box-shadow: 0 0 0 3px rgba(176, 137, 64, 0.16);
+}
+
+.control::placeholder,
+.textarea::placeholder {
+  color: var(--ink-tint);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 120px;
+  line-height: 1.55;
+}
+
+.select {
+  appearance: none;
+  cursor: pointer;
+}
+
+.invalid {
+  border-color: var(--sig-overdue);
+}
+
+.fieldError {
+  font-size: 12.5px;
+  color: var(--sig-overdue);
+  margin: 0;
+}
+
+/* Repeatable string array (crew[], services[]) + object groups (waypoints[]). */
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.rowGrow {
+  flex: 1;
+}
+
+.groupRow {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  position: relative;
+}
+
+.removeBtn {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.addBtn {
+  align-self: flex-start;
+}
+
+/* RecordForm shell. */
+.formHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.errorSurface {
+  border-color: var(--sig-overdue);
+  background: var(--sig-overdue-bg);
+  color: var(--ink-800);
+}
+
+/* PhotoUpload. */
+.photoDrop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.photoStatus {
+  font-size: 13px;
+}
+
+.photoStatus.ok {
+  color: var(--sig-good);
+}
+
+.photoStatus.bad {
+  color: var(--sig-overdue);
+}
+
+.hiddenInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

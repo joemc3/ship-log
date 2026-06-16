@@ -1,0 +1,102 @@
+/* CostsPage-only bits with no global app.css class: the donut grid two-up split,
+ * the ledger-row hover, the category swatch, and the cross-link buttons. The
+ * shared src/ui/styles/app.css is owned by the foundation — we never edit it. */
+
+.summaryGrid {
+  grid-template-columns: 320px 1fr;
+  margin-bottom: 24px;
+  align-items: stretch;
+}
+
+@media (max-width: 680px) {
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.donutCard {
+  justify-content: center;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+
+.swatchSm {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+  display: inline-block;
+}
+
+.ledgerRow {
+  padding: 13px 18px;
+}
+
+.ledgerRow:hover {
+  background: var(--paper-2);
+}
+
+.ledgerHead {
+  padding: 11px 18px;
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.ledgerTotal {
+  padding: 13px 18px;
+  border-top: 2px solid var(--line-strong);
+  background: var(--paper-2);
+}
+
+/* A bare, inline cross-link button that reads like a link (vendor / maint). */
+.crossLink {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--brass-deep);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.crossLink:hover {
+  text-decoration: underline;
+}
+
+/* Per-row owner controls (edit / delete), shown only to a non-demo owner. */
+.rowActions {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm, 6px);
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink-600);
+  cursor: pointer;
+}
+
+.iconBtn:hover {
+  background: var(--paper-2);
+  color: var(--ink-800);
+}
+
+.iconBtnDanger:hover {
+  color: var(--sig-overdue);
+  border-color: var(--sig-overdue);
+}

@@ -14,7 +14,7 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerDataRoutes } from './routes/data.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { registerWriteRoutes } from './routes/writes.js';
-import { registerPhotoRoute, registerSpaStatic } from './static.js';
+import { registerPhotoRoute, registerManualRoute, registerSpaStatic } from './static.js';
 
 export interface AppContext {
   config: Config;
@@ -44,10 +44,11 @@ export function createApp(deps: Omit<AppContext, 'now'> & { now?: () => Date }):
   registerAdminRoutes(app, ctx);
   registerWriteRoutes(app, ctx);
   registerPhotoRoute(app, ctx);
+  registerManualRoute(app, ctx);
 
-  // Any unmatched /api or /photos path -> JSON 404. Registered BEFORE the SPA so
-  // an unknown API/photo route is always a JSON 404 and never index.html.
-  app.use(['/api', '/photos'], (_req, res) => { res.status(404).json({ error: 'not found' }); });
+  // Any unmatched /api, /photos, or /files path -> JSON 404. Registered BEFORE
+  // the SPA so an unknown API/asset route is always a JSON 404, never index.html.
+  app.use(['/api', '/photos', '/files'], (_req, res) => { res.status(404).json({ error: 'not found' }); });
 
   // Built SPA (dist/ui) with history-fallback for every other route. No-op when
   // no client build is configured. It explicitly ignores /api + /photos.

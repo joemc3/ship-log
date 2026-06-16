@@ -8,8 +8,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 /**
  * SPA build/dev config. Root is this src/ui dir (so index.html + main.tsx are
  * the entry); the bundle is emitted to <repo>/dist/ui. In dev (`npm run dev:ui`)
- * the server proxies /api and /photos to the Express server on :8080, so the SPA
- * runs against the real API in demo mode. The Express app serves dist/ui in P2.
+ * the server proxies /api, /photos, and /files to the Express server on :8080,
+ * so the SPA runs against the real API in demo mode. The Express app serves
+ * dist/ui in P2.
  */
 export default defineConfig({
   root: here,
@@ -23,6 +24,7 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://localhost:8080', changeOrigin: true },
       '/photos': { target: 'http://localhost:8080', changeOrigin: true },
+      '/files': { target: 'http://localhost:8080', changeOrigin: true },
     },
   },
 });

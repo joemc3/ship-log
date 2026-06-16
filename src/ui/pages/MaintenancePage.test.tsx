@@ -1,12 +1,24 @@
 /**
  * Component test for MaintenancePage, driven against a mocked API client
- * (`../lib/api.js`) the same way the foundation's session test mocks it. We bind
- * to the REAL record shapes (frontmatter + body) — NOT the prototype's richer
- * window.DATA — and assert the cost-redaction degradation contract:
- *   - an OWNER fixture (costEst present) renders the cost row + Est. outstanding
- *     stat + the cost cross-link;
- *   - a CREW fixture (costEst stripped server-side, so absent) renders NO cost
- *     row, NO cost link, and a clean (cost-free) outstanding stat.
+ * (`../lib/api.js`) and a mocked session (`../state/session.js`) the same way the
+ * foundation's WelcomePage/session tests do. We bind to the REAL record shapes
+ * (frontmatter + body) — NOT the prototype's richer window.DATA — and assert two
+ * contracts:
+ *
+ *   1. COST REDACTION DEGRADES GRACEFULLY:
+ *      - an OWNER fixture (costEst present) renders the cost row + Est. outstanding
+ *        stat + the cost cross-link;
+ *      - a CREW fixture (costEst stripped server-side, so absent) renders NO cost
+ *        row, NO cost link, and a clean (cost-free) outstanding stat.
+ *
+ *   2. ROLE-CORRECT WRITE AFFORDANCES (P1d Milestone B):
+ *      - CREW + OWNER (not demo): a real "Mark complete" control on each non-done
+ *        item → POST /api/maintenance/:id/complete, then refresh; it NEVER exposes
+ *        or touches costEst.
+ *      - OWNER ONLY: full create/edit (incl. costEst input, vendor + source-trip
+ *        pickers) + delete. CREW sees NONE of those (the API 403s them anyway).
+ *      - DEMO: every write affordance is hidden (writes are denyInDemo → 403).
+ *
  * We also assert the overdue/due rollup, the body-steps checklist, the photo
  * <img> (resolved against the /photos route), and that cross-links navigate.
  */
@@ -16,20 +28,60 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import MaintenancePage from './MaintenancePage.js';
 import { api } from '../lib/api.js';
-import type { MaintenanceRec, VendorRec, Derived } from '../lib/types.js';
+import { useSession, type Session } from '../state/session.js';
+import type { MaintenanceRec, VendorRec, TripRec, Derived } from '../lib/types.js';
 
 vi.mock('../lib/api.js', () => ({
   api: {
     maintenance: vi.fn(),
     vendors: vi.fn(),
     derived: vi.fn(),
+    trips: vi.fn(),
+    completeMaintenance: vi.fn(),
+    createMaintenance: vi.fn(),
+    updateMaintenance: vi.fn(),
+    deleteMaintenance: vi.fn(),
   },
   ApiError: class ApiError extends Error {},
 }));
 
+// The page learns its role/demo from the session context (to gate write
+// affordances). Mock it the same way the Shell/Welcome tests do.
+vi.mock('../state/session.js', async (orig) => {
+  const actual = await orig<typeof import('../state/session.js')>();
+  return { ...actual, useSession: vi.fn() };
+});
+
 const mockedMaint = vi.mocked(api.maintenance);
 const mockedVendors = vi.mocked(api.vendors);
 const mockedDerived = vi.mocked(api.derived);
+const mockedTrips = vi.mocked(api.trips);
+const mockedComplete = vi.mocked(api.completeMaintenance);
+const mockedCreate = vi.mocked(api.createMaintenance);
+const mockedUpdate = vi.mocked(api.updateMaintenance);
+const mockedDelete = vi.mocked(api.deleteMaintenance);
+const mockedUseSession = vi.mocked(useSession);
+
+function session(partial: Partial<Session>): Session {
+  return {
+    loading: false,
+    role: 'guest',
+    username: null,
+    demo: false,
+    ownerConfigured: true,
+    isOwner: false,
+    isCrew: false,
+    isAuthed: false,
+    refresh: vi.fn(),
+    login: vi.fn(),
+    logout: vi.fn(),
+    ...partial,
+  };
+}
+
+const OWNER = session({ role: 'owner', isOwner: true, isAuthed: true, username: 'skipper' });
+const CREW = session({ role: 'crew', isCrew: true, isAuthed: true, username: 'mate' });
+const DEMO = session({ role: 'owner', isOwner: true, isAuthed: true, demo: true });
 
 /* ---- fixtures (demo-shaped, real schema) ---- */
 
@@ -91,6 +143,11 @@ const VENDORS: VendorRec[] = [
   { id: 'v-yard', name: 'Harbor Boatyard', phone: '555-0202', body: '' },
 ];
 
+const TRIPS: TripRec[] = [
+  { id: 't-2026-05-09', title: 'Coastal passage to Heron Cove', date: '2026-05-09', body: '' },
+  { id: 't-2026-04-18', title: 'Spring shakedown', date: '2026-04-18', body: '' },
+];
+
 const DERIVED: Derived = {
   attention: 3,
   inventoryTasks: [
@@ -129,7 +186,16 @@ describe('MaintenancePage', () => {
     mockedMaint.mockReset();
     mockedVendors.mockReset();
     mockedDerived.mockReset();
+    mockedTrips.mockReset();
+    mockedComplete.mockReset();
+    mockedCreate.mockReset();
+    mockedUpdate.mockReset();
+    mockedDelete.mockReset();
+    mockedUseSession.mockReset();
     mockedVendors.mockResolvedValue(VENDORS);
+    mockedTrips.mockResolvedValue(TRIPS);
+    // Default: owner, not demo. Individual tests override.
+    mockedUseSession.mockReturnValue(OWNER);
   });
   afterEach(() => vi.clearAllMocks());
 
@@ -172,6 +238,7 @@ describe('MaintenancePage', () => {
   });
 
   it('CREW fixture (costEst absent): renders NO cost row, NO cost link, no cost stat', async () => {
+    mockedUseSession.mockReturnValue(CREW);
     mockedMaint.mockResolvedValue([IMPELLER_CREW]);
     mockedDerived.mockResolvedValue(EMPTY_DERIVED);
     renderPage();
@@ -231,16 +298,6 @@ describe('MaintenancePage', () => {
     );
   });
 
-  it('leaves a disabled "Mark complete" placeholder on an open item (wired later)', async () => {
-    mockedMaint.mockResolvedValue([IMPELLER_OWNER]);
-    mockedDerived.mockResolvedValue(EMPTY_DERIVED);
-    renderPage('/maintenance/m-engine-impeller');
-
-    await waitFor(() => expect(screen.getByTestId('maint-detail')).toBeInTheDocument());
-    const btn = screen.getByRole('button', { name: /mark complete/i });
-    expect(btn).toBeDisabled();
-  });
-
   it('queue inventory task (from /api/derived) cross-links to /inventory?focus=', async () => {
     mockedMaint.mockResolvedValue([]);
     mockedDerived.mockResolvedValue(DERIVED);
@@ -251,5 +308,157 @@ describe('MaintenancePage', () => {
     await waitFor(() =>
       expect(screen.getAllByTestId('location')[0]).toHaveTextContent('/inventory?focus=inv-flares'),
     );
+  });
+
+  /* ============================================================ write affordances */
+
+  describe('write: mark complete (crew + owner)', () => {
+    it('CREW: a "Mark complete" control posts complete + refreshes, never touching costEst', async () => {
+      mockedUseSession.mockReturnValue(CREW);
+      mockedMaint.mockResolvedValue([IMPELLER_CREW]);
+      mockedDerived.mockResolvedValue(EMPTY_DERIVED);
+      mockedComplete.mockResolvedValue({ ...IMPELLER_CREW, status: 'done', completed: '2026-06-16' });
+      renderPage('/maintenance/m-engine-impeller');
+
+      await waitFor(() => expect(screen.getByTestId('maint-detail')).toBeInTheDocument());
+
+      // The control is real (enabled), not the old disabled placeholder.
+      const btn = screen.getByRole('button', { name: /mark complete/i });
+      expect(btn).toBeEnabled();
+      await userEvent.click(btn);
+
+      // Optional completed-date + note inputs appear; defaulting the date is fine.
+      const confirm = await screen.findByRole('button', { name: /confirm|complete|done/i });
+      await userEvent.click(confirm);
+
+      await waitFor(() => expect(mockedComplete).toHaveBeenCalledTimes(1));
+      const [id, opts] = mockedComplete.mock.calls[0]!;
+      expect(id).toBe('m-engine-impeller');
+      // The complete op NEVER carries a cost field.
+      expect(opts ?? {}).not.toHaveProperty('costEst');
+      // Data is re-fetched on success (the initial load already called it once).
+      await waitFor(() => expect(mockedMaint.mock.calls.length).toBeGreaterThanOrEqual(2));
+    });
+
+    it('CREW: does NOT see a delete control, a costEst input, or full-edit', async () => {
+      mockedUseSession.mockReturnValue(CREW);
+      mockedMaint.mockResolvedValue([IMPELLER_CREW]);
+      mockedDerived.mockResolvedValue(EMPTY_DERIVED);
+      renderPage('/maintenance/m-engine-impeller');
+
+      await waitFor(() => expect(screen.getByTestId('maint-detail')).toBeInTheDocument());
+
+      // No owner-only affordances for crew.
+      expect(screen.queryByRole('button', { name: /delete item/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /edit item/i })).not.toBeInTheDocument();
+      // Opening "Mark complete" must NOT surface a cost input.
+      await userEvent.click(screen.getByRole('button', { name: /mark complete/i }));
+      expect(screen.queryByLabelText(/cost/i)).not.toBeInTheDocument();
+    });
+
+    it('owner sees Mark complete too (it is crew + owner)', async () => {
+      mockedUseSession.mockReturnValue(OWNER);
+      mockedMaint.mockResolvedValue([IMPELLER_OWNER]);
+      mockedDerived.mockResolvedValue(EMPTY_DERIVED);
+      renderPage('/maintenance/m-engine-impeller');
+
+      await waitFor(() => expect(screen.getByTestId('maint-detail')).toBeInTheDocument());
+      expect(screen.getByRole('button', { name: /mark complete/i })).toBeEnabled();
+    });
+  });
+
+  describe('write: owner-only create / edit / delete', () => {
+    it('OWNER: "Add item" opens a create form with a costEst input + vendor/trip pickers', async () => {
+      mockedUseSession.mockReturnValue(OWNER);
+      mockedMaint.mockResolvedValue([IMPELLER_OWNER]);
+      mockedDerived.mockResolvedValue(EMPTY_DERIVED);
+      mockedCreate.mockResolvedValue({
+        id: 'm-new', title: 'New job', status: 'scheduled', body: '',
+      });
+      renderPage();
+
+      await waitFor(() => expect(screen.getByText('Replace raw-water impeller (overheating)')).toBeInTheDocument());
+
+      // The "Add item" button is now enabled (real op), not the disabled placeholder.
+      const add = screen.getByRole('button', { name: /add item/i });
+      expect(add).toBeEnabled();
+      await userEvent.click(add);
+
+      // Owner create form exposes the cost input + the vendor/source-trip pickers.
+      expect(await screen.findByLabelText(/title/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/cost/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/vendor/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/trip/i)).toBeInTheDocument();
+
+      // Fill the required title + create.
+      await userEvent.type(screen.getByLabelText(/title/i), 'Replace bilge pump');
+      await userEvent.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => expect(mockedCreate).toHaveBeenCalledTimes(1));
+      const payload = mockedCreate.mock.calls[0]![0] as Record<string, unknown>;
+      expect(payload.title).toBe('Replace bilge pump');
+      // Status defaults to a valid enum; no id is ever sent (server derives it).
+      expect(payload).not.toHaveProperty('id');
+      // Refresh after success.
+      await waitFor(() => expect(mockedMaint.mock.calls.length).toBeGreaterThanOrEqual(2));
+    });
+
+    it('OWNER: an item detail offers Edit (prefilled costEst) and Delete', async () => {
+      mockedUseSession.mockReturnValue(OWNER);
+      mockedMaint.mockResolvedValue([IMPELLER_OWNER]);
+      mockedDerived.mockResolvedValue(EMPTY_DERIVED);
+      mockedUpdate.mockResolvedValue({ ...IMPELLER_OWNER, title: 'Replace raw-water impeller' });
+      renderPage('/maintenance/m-engine-impeller');
+
+      await waitFor(() => expect(screen.getByTestId('maint-detail')).toBeInTheDocument());
+
+      await userEvent.click(screen.getByRole('button', { name: /edit item/i }));
+
+      // The cost input is prefilled from the record's costEst.
+      const cost = await screen.findByLabelText(/cost/i) as HTMLInputElement;
+      expect(cost.value).toBe('180');
+
+      await userEvent.click(screen.getByRole('button', { name: /save/i }));
+      await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1));
+      expect(mockedUpdate.mock.calls[0]![0]).toBe('m-engine-impeller');
+    });
+
+    it('OWNER: Delete confirms then calls deleteMaintenance + navigates back to the list', async () => {
+      mockedUseSession.mockReturnValue(OWNER);
+      mockedMaint.mockResolvedValue([IMPELLER_OWNER]);
+      mockedDerived.mockResolvedValue(EMPTY_DERIVED);
+      mockedDelete.mockResolvedValue(undefined);
+      renderPage('/maintenance/m-engine-impeller');
+
+      await waitFor(() => expect(screen.getByTestId('maint-detail')).toBeInTheDocument());
+
+      await userEvent.click(screen.getByRole('button', { name: /delete/i }));
+      // A confirm step guards the destructive op.
+      const confirm = await screen.findByRole('button', { name: /confirm|yes|delete/i });
+      await userEvent.click(confirm);
+
+      await waitFor(() => expect(mockedDelete).toHaveBeenCalledWith('m-engine-impeller'));
+    });
+  });
+
+  describe('write: demo lockout', () => {
+    it('DEMO (owner-equivalent, read-only): hides Add item, Mark complete, Edit, Delete', async () => {
+      mockedUseSession.mockReturnValue(DEMO);
+      mockedMaint.mockResolvedValue([IMPELLER_OWNER]);
+      mockedDerived.mockResolvedValue(EMPTY_DERIVED);
+      renderPage('/maintenance/m-engine-impeller');
+
+      await waitFor(() => expect(screen.getByTestId('maint-detail')).toBeInTheDocument());
+
+      // Every write affordance is hidden in demo (writes are denyInDemo → 403).
+      expect(screen.queryByRole('button', { name: /mark complete/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /edit item/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /delete item/i })).not.toBeInTheDocument();
+
+      // And on the list view, no "Add item".
+      renderPage();
+      await waitFor(() => expect(screen.getAllByText('Replace raw-water impeller (overheating)').length).toBeGreaterThan(0));
+      expect(screen.queryByRole('button', { name: /add item/i })).not.toBeInTheDocument();
+    });
   });
 });

@@ -1,0 +1,38 @@
+/* Page-local styles for the trip form — co-located so the shared app.css (owned
+   by the foundation) stays untouched. Only the responsive field grids + the
+   inline photo-remove control live here; everything else is form-kit / app.css. */
+
+.twoCol {
+  grid-template-columns: 1fr 1fr;
+  gap: 0 14px;
+}
+
+.threeCol {
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0 14px;
+}
+
+@media (max-width: 620px) {
+  .twoCol,
+  .threeCol {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Small remove "x" tucked into a photo chip. */
+.photoRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-tint);
+  cursor: pointer;
+  line-height: 0;
+}
+
+.photoRemove:hover {
+  color: var(--sig-overdue);
+}

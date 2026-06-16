@@ -20,14 +20,16 @@
  * /trips/:id deep link or a ?focus=<id> query (from a cross-link or search hit)
  * opens that trip's detail directly and scroll-highlights it.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Icon, type IconName } from '../components/Icon.js';
 import { Photo, Stat, SectionHead, WeatherRow, EmptyState } from '../components/atoms.js';
 import { api, ApiError } from '../lib/api.js';
+import { useSession } from '../state/session.js';
 import { fmtDate, fmtDateShort } from '../lib/format.js';
 import type { TripRec } from '../lib/types.js';
 import { Markdown } from './Markdown.js';
+import { TripForm } from './TripForm.js';
 import styles from './TripsPage.module.css';
 
 /** Waypoint type -> timeline icon (the real schema's four types). */
@@ -111,10 +113,15 @@ function TripDetail({
   trip,
   onBack,
   onOpenMaint,
+  canWrite,
+  onEdit,
 }: {
   trip: TripRec;
   onBack: () => void;
   onOpenMaint: (maintId: string) => void;
+  /** Crew + owner (never in demo) may edit a trip. */
+  canWrite: boolean;
+  onEdit: () => void;
 }): JSX.Element {
   const findings = trip.findings ?? [];
   const crew = trip.crew ?? [];
@@ -125,9 +132,16 @@ function TripDetail({
   return (
     <div className="page fade-in">
       <div className="page-wrap" style={{ maxWidth: 1000 }}>
-        <button className="btn btn-ghost" onClick={onBack} style={{ marginBottom: 18 }}>
-          <Icon name="arrowLeft" s={16} />All trips
-        </button>
+        <div className="flex items-center" style={{ justifyContent: 'space-between', gap: 12, marginBottom: 18 }}>
+          <button className="btn btn-ghost" onClick={onBack}>
+            <Icon name="arrowLeft" s={16} />All trips
+          </button>
+          {canWrite && (
+            <button className="btn btn-ghost" onClick={onEdit}>
+              <Icon name="log" s={16} />Edit trip
+            </button>
+          )}
+        </div>
 
         <div className="flex items-center gap-12" style={{ flexWrap: 'wrap', marginBottom: 4 }}>
           <span className="eyebrow">Trip log</span>
@@ -300,14 +314,21 @@ function TripCard({ trip, onClick, highlighted }: { trip: TripRec; onClick: () =
 
 /* -------------------------------------------------------------------- page */
 
+/** Which write form (if any) is open. 'add' creates; an id edits that trip. */
+type WriteMode = { kind: 'add' } | { kind: 'edit'; id: string } | null;
+
 export default function TripsPage(): JSX.Element {
   const navigate = useNavigate();
   const { id: routeId } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const focusId = searchParams.get('focus');
+  const { isCrew, isOwner, demo } = useSession();
+  // Crew and owner share the SAME trip-write scope; every affordance vanishes in demo.
+  const canWrite = (isCrew || isOwner) && !demo;
 
   const [trips, setTrips] = useState<TripRec[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [write, setWrite] = useState<WriteMode>(null);
   const focusRef = useRef<HTMLDivElement>(null);
 
   // The open trip is driven by the URL: /trips/:id (deep link) or ?focus=<id>
@@ -320,17 +341,18 @@ export default function TripsPage(): JSX.Element {
     if (next) setOpenId(next);
   }, [routeId, focusId]);
 
-  useEffect(() => {
-    let alive = true;
-    api.trips()
-      .then((res) => { if (alive) setTrips(res); })
-      .catch((err: unknown) => {
-        if (!alive) return;
-        setError(err instanceof ApiError ? err.message : 'Could not load the trip logs.');
-        setTrips([]);
-      });
-    return () => { alive = false; };
+  // The list fetch is reusable so a successful write can refresh it in place.
+  const load = useCallback(async (): Promise<void> => {
+    try {
+      const res = await api.trips();
+      setTrips(res);
+    } catch (err: unknown) {
+      setError(err instanceof ApiError ? err.message : 'Could not load the trip logs.');
+      setTrips([]);
+    }
   }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   const sorted = useMemo(
     () => (trips ? [...trips].sort((a, b) => b.date.localeCompare(a.date)) : []),
@@ -346,6 +368,15 @@ export default function TripsPage(): JSX.Element {
     }
   }, [focusId, open, sorted]);
 
+  // A successful write refreshes the list and closes the form.
+  const onSaved = (): void => { setWrite(null); void load(); };
+
+  // The write form takes over the page (crew + owner only; never in demo).
+  if (canWrite && write) {
+    const editTrip = write.kind === 'edit' ? sorted.find((t) => t.id === write.id) : undefined;
+    return <TripForm trip={editTrip} onSaved={onSaved} onCancel={() => setWrite(null)} />;
+  }
+
   if (trips === null) {
     return (
       <div className="page fade-in">
@@ -360,6 +391,8 @@ export default function TripsPage(): JSX.Element {
         trip={open}
         onBack={() => { setOpenId(null); navigate('/trips'); }}
         onOpenMaint={(maintId) => navigate(`/maintenance?focus=${encodeURIComponent(maintId)}`)}
+        canWrite={canWrite}
+        onEdit={() => setWrite({ kind: 'edit', id: open.id })}
       />
     );
   }
@@ -394,7 +427,17 @@ export default function TripsPage(): JSX.Element {
           <div className="card card-pad"><Stat label="Guests aboard" value={guests.size} sm /></div>
         </div>
 
-        <SectionHead icon="log" title="All trips" />
+        <SectionHead
+          icon="log"
+          title="All trips"
+          action={
+            canWrite && (
+              <button className="btn btn-brass" onClick={() => setWrite({ kind: 'add' })}>
+                <Icon name="plus" s={16} />Add trip
+              </button>
+            )
+          }
+        />
 
         {sorted.length === 0 ? (
           <EmptyState icon="log" title="No trips logged yet" hint="The first outing will appear here once it's recorded." />

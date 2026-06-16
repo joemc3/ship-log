@@ -92,3 +92,12 @@ export interface LoginResult {
   username: string;
   role: Role;
 }
+
+/** A user account as the admin list serves it (NO password hash ever crosses
+ *  the wire). Roles are restricted to the assignable set (owner|crew) — `guest`
+ *  is the absence of an account, never a stored role. */
+export type AssignableRole = 'owner' | 'crew';
+export interface User {
+  username: string;
+  role: AssignableRole;
+}
