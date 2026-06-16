@@ -13,6 +13,7 @@ import { attachRole } from './middleware.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerDataRoutes } from './routes/data.js';
 import { registerAdminRoutes } from './routes/admin.js';
+import { registerWriteRoutes } from './routes/writes.js';
 
 export interface AppContext {
   config: Config;
@@ -40,6 +41,7 @@ export function createApp(deps: Omit<AppContext, 'now'> & { now?: () => Date }):
   registerAuthRoutes(app, ctx);
   registerDataRoutes(app, ctx);
   registerAdminRoutes(app, ctx);
+  registerWriteRoutes(app, ctx);
 
   // Unmatched route -> JSON 404 (keeps the API JSON-only).
   app.use((_req, res) => { res.status(404).json({ error: 'not found' }); });
