@@ -6,10 +6,11 @@ import { buildTestApp } from './helpers.js';
 async function loginAs(role: 'owner' | 'crew') {
   const { app } = await buildTestApp();
   const agent = request.agent(app);
-  await agent.post('/api/login').send({
+  const res = await agent.post('/api/login').send({
     username: role === 'owner' ? 'owner1' : 'crew1',
     password: role === 'owner' ? 'ownerpass123' : 'crewpass123',
   });
+  if (res.status !== 200) throw new Error(`loginAs(${role}) failed: ${res.status} ${JSON.stringify(res.body)}`);
   return agent;
 }
 
