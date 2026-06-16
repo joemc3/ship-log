@@ -1,8 +1,10 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 import { mkdtempSync } from 'node:fs';
+import { cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import type { Express } from 'express';
+import { simpleGit } from 'simple-git';
 import { loadConfig, type Config } from '../../src/server/config.js';
 import { loadDataset } from '../../src/data/index.js';
 import { UsersStore } from '../../src/server/users.js';
@@ -31,4 +33,18 @@ export async function buildTestApp(opts: { demo?: boolean } = {}): Promise<TestA
   }
   const app = createApp({ config, dataset, users, now: FIXED_NOW });
   return { app, users, config };
+}
+
+/** Copy the demo dataset into a fresh temp dir and git-init it, so write tests
+ *  commit into a throwaway repo (never the app repo). Returns the dir path. */
+export async function makeDataRepo(): Promise<string> {
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-data-'));
+  await cp(DEMO, dir, { recursive: true });
+  const git = simpleGit(dir);
+  await git.init();
+  await git.addConfig('user.email', 'test@shiplog.test');
+  await git.addConfig('user.name', 'Test');
+  await git.add('.');
+  await git.commit('seed demo dataset');
+  return dir;
 }
