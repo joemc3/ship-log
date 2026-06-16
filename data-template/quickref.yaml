@@ -1,0 +1,8 @@
+# quickref.yaml — short cheat-sheet cards (reefing, MOB, VHF distress, …).
+# An empty list is valid; the loader treats a missing OR empty file as no cards.
+# Each card is: { id: qr-<slug>, title: <string>, body: <string, optional> }.
+# Example (uncomment and adapt):
+# - id: qr-reef
+#   title: Reefing the main
+#   body: Head up, ease the halyard to the reef mark, hook the tack, winch the clew, re-tension.
+[]

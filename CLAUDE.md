@@ -435,3 +435,74 @@ same change.
 - **First deploy** (fork app → private `<boat>-log` data repo → deploy key / PAT →
   secrets → reconcile pinned IP → `compose up` → log in as owner) is walked through
   step-by-step in `README.md` ("VPS deploy walkthrough" + "Credential modes").
+
+## Data repos & Cowork enablement (P3)
+
+There are **two** datasets in this monorepo, and they are deliberately distinct —
+never conflate them:
+
+- **`demo/`** — the populated *Valkyrie* set. It is the demo-mode dataset and the
+  fixture the data/server tests load. Has real records in every collection.
+- **`data-template/`** — the **empty seed** a forker instantiates their own private
+  `<boat>-log` data repo from. It carries the full *shape* but **no records**: a
+  schema-valid placeholder `boat.yaml` (required `name`, empty-string `make`/
+  `model`/`hailingPort`, `specs: {}`, `welcome:{rules:[],whatToExpect:'',
+  whatToBring:[],safety:''}`; `year` is documented-but-omitted because the schema
+  types it as a *number* with no empty-number placeholder), an empty
+  `quickref.yaml` (`[]`), and the six collection dirs + `photos/` each kept in git
+  by a `.gitkeep`. `loadDataset('data-template')` must succeed and yield all-empty
+  collections — guarded by `test/data/data-template.test.ts`. Keep
+  `data-template/` genuinely empty of records.
+- **Worked examples live under `data-template/examples/`** — one commented
+  `*.md` per collection showing the field shape, plus a `half-written-trip/`
+  fixture (a sparse trip + a photo placeholder + a `manuals/` reference) that the
+  `complete-trip` skill researches against and the output-contract test pins to.
+  The loader **never scans `examples/`**: `loadCollection` reads `*.md` directly
+  (non-recursively) in a *collection* dir (`trips/`, `maintenance/`, …) only, so
+  neither the commented examples nor the fixture's subfolders can pollute a
+  dataset. That is why the example frontmatter is also left commented — a
+  human/Cowork sees the shape; nothing is ever loaded by accident.
+
+**The docs live in the DATA repo and MIRROR `src/data/` as the source of truth.**
+The three Cowork-facing docs — `AGENTS.md`, `SCHEMA.md`, and the `complete-trip`
+skill (`.claude/skills/complete-trip/SKILL.md`) — are not free-standing prose:
+they teach, by hand, exactly what `src/data/` enforces. `src/data/` is always the
+source of truth; the docs follow it, never the reverse. They are authored
+**canonically under `data-template/`** and **byte-copied into `demo/`** (so a fork
+of either dataset carries them). All three now exist:
+
+- **`AGENTS.md`** — Cowork's entry point: what the repo is, the file layout, the
+  ground rules, and the research-and-write workflow. Points at `SCHEMA.md` for
+  per-field detail rather than duplicating it.
+- **`SCHEMA.md`** — the per-record contract: fields, id/slug rules, the cross-link
+  table, enums, and the owner-only monetary tags. Mirrors the Zod schemas.
+- **`complete-trip` skill** — the trip-completion workflow (read → view photos →
+  research web + `manuals/` → write narrative → open the two-way-linked
+  maintenance item → commit & push). It **references `SCHEMA.md`'s id/slug/monetary
+  rules rather than restating them**, and is runtime-agnostic (Cowork skill or a
+  `/complete-trip` slash-command).
+
+**Doc-drift guard (keep green):** `test/data/p3-doc-drift-golden.test.ts` is the
+P3 analogue of the redaction golden. It (a) asserts every collection dir, id
+prefix, monetary field + owner-only collection, cross-link field, and status /
+severity / waypoint enum — all read back from the `describe.ts` descriptor —
+appears verbatim in `SCHEMA.md` (and that NO monetary field is omitted from its
+monetary section), and (b) asserts the `demo/` copies of `AGENTS.md`, `SCHEMA.md`,
+and `SKILL.md` are byte-identical to the `data-template/` canonicals.
+(`cowork-docs-mirror.test.ts` and `schema-doc.test.ts` add finer prose checks.)
+Never weaken it.
+
+**Same-change rule (extends the cost-data invariant):** when you add or rename a
+**monetary, cross-link, or collection field**, update `src/data/schema.ts`,
+`src/data/monetary.ts` / `src/data/links.ts` / `src/data/write.ts`, **and**
+`SCHEMA.md` + `AGENTS.md` (the `data-template/` canonicals, re-synced to `demo/`)
+**in the same change** — the doc-drift guard will fail until you do. Treat the
+docs as part of the schema's public surface.
+
+**Cowork operates on a git clone of the DATA repo, NEVER through the running app
+or its REST API.** The app is the single server-side writer and pulls Cowork's
+pushes on a timer; the skill must only edit files + `git commit`/`push`, never
+call an API endpoint. Cowork docs must teach that **cost data is owner-sensitive**
+(`costs/` is owner-only; `maintenance.costEst` is a money field) and must **never
+be surfaced in crew-facing trip narratives** — the redaction in `redact.ts` only
+protects the API surface, not a narrative a writer pastes into a trip body.

@@ -1,0 +1,3 @@
+# Keeps this empty collection dir in git. Drop manual records here as
+# `man-<slug>.md` (one per file); PDFs they reference live in this dir too.
+# See ../examples/manual.md for the shape.

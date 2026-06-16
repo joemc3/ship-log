@@ -7,17 +7,20 @@ your own boat's data repo, and go. See the design spec in
 ## Status
 
 The data core (P1a), the read server (P1b), the write layer (P1c), the SPA (P1d),
-and the local-testable parts of **P2** are built: a headless data layer
-(`src/data/`) plus an Express REST API (`src/server/`) with app-level auth
-(signed-cookie sessions, three roles), server-side cost redaction, record writes
-committed to the data repo, photo upload, and a Vite + React + TypeScript SPA
-(`src/ui/`) that binds to the real API. **P2 adds two-way git sync** (clone on
-boot → timed `pull --rebase` + post-write push, with a conflict-pause that never
-force-pushes), **transport hardening** (HSTS + a same-origin CSP, on behind TLS),
-and the **Docker/compose** packaging for the Pangolin-tunnel VPS. The remaining
-P2 work is the actual VPS bring-up (and the SPA conflict banner that consumes
-`GET /api/sync`); the sync engine, hardening, and deploy artifacts are testable
-end-to-end locally against `file://` repos.
+the local-testable parts of **P2**, and **Cowork enablement (P3)** are built: a
+headless data layer (`src/data/`) plus an Express REST API (`src/server/`) with
+app-level auth (signed-cookie sessions, three roles), server-side cost redaction,
+record writes committed to the data repo, photo upload, and a Vite + React +
+TypeScript SPA (`src/ui/`) that binds to the real API. **P2 adds two-way git
+sync** (clone on boot → timed `pull --rebase` + post-write push, with a
+conflict-pause that never force-pushes), **transport hardening** (HSTS + a
+same-origin CSP, on behind TLS), and the **Docker/compose** packaging for the
+Pangolin-tunnel VPS. **P3 adds the Cowork docs** (`AGENTS.md`, `SCHEMA.md`) and
+the `complete-trip` skill that ship *inside the data repo* + the empty
+`data-template/` seed a forker instantiates from — see "Cowork enablement" below.
+The remaining P2 work is the actual VPS bring-up (and the SPA conflict banner that
+consumes `GET /api/sync`); the sync engine, hardening, and deploy artifacts are
+testable end-to-end locally against `file://` repos.
 
 ## Develop
 
@@ -236,9 +239,11 @@ tunnel stack is already up and the data-repo host is GitHub.
 
 1. **Fork the app.** Fork `ship-log` (this repo) to your account and clone it onto
    the VPS. Nothing boat-specific lives here — only code.
-2. **Create the private data repo.** Make a private `<boat>-log` repo from the
-   data-template (see P3) — this holds `boat.yaml`, `trips/`, `maintenance/`,
-   `photos/`, etc. It is the source of truth the app clones and Cowork edits.
+2. **Create the private data repo.** Make a private `<boat>-log` repo by copying
+   `data-template/` (not `demo/`) — this holds `boat.yaml`, `trips/`,
+   `maintenance/`, `photos/`, etc., plus the Cowork docs (`AGENTS.md`, `SCHEMA.md`)
+   and the `complete-trip` skill, which ship inside the data repo (see "Cowork
+   enablement" below). It is the source of truth the app clones and Cowork edits.
 3. **Pick a credential mode** (the app clones/pulls/pushes the data repo as one of
    these — use exactly one):
    - **SSH deploy key (recommended).** Generate a keypair
@@ -334,6 +339,45 @@ still commits locally, so nothing is lost. Resolve it out-of-band:
    write. The app **never force-pushes**, so the remote history is always intact to
    resolve from.
 
+## Cowork enablement (P3)
+
+The data repo is **self-documenting for Claude Cowork** — it ships everything a
+writer needs to finish log entries correctly, *inside the data repo itself*, so a
+forker's private `<boat>-log` carries it from day one:
+
+- **`AGENTS.md`** — Cowork's entry point: what the repo is, the file layout, the
+  ground rules (partial entries are first-class, never invent measurements, costs
+  are owner-sensitive, preserve human-readable ids), and the research-and-write
+  workflow. It points at `SCHEMA.md` for per-field detail rather than duplicating
+  it.
+- **`SCHEMA.md`** — the record contract: every collection's fields, the id/slug
+  rules, the cross-link table, the enum values, and the **owner-only monetary
+  tags**. It mirrors the app's Zod schemas exactly.
+- **`.claude/skills/complete-trip/SKILL.md`** — a runtime-agnostic skill (works as
+  a Cowork skill or a `/complete-trip` slash-command) packaging the target flow:
+  *load `AGENTS.md` + `SCHEMA.md` → read the half-written trip and view its photos
+  → research the fix (web **and** the boat's own `manuals/` + `quickref.yaml`) →
+  write the trip narrative → open/update the linked maintenance item with a
+  two-way cross-link → commit & push.*
+
+**Cowork works on a git clone of the data repo — never through the running app or
+its REST API.** The app is the single server-side writer; Cowork edits plain files
+and pushes, and the app pulls those pushes on its sync timer (see "Two-way sync").
+Because costs are redacted only at the API boundary, the docs teach a hard rule
+that redaction cannot enforce on prose: **never surface a dollar amount, a
+`costEst`, or a cost record in a crew-facing trip narrative or finding.**
+
+These three docs are authored **canonically under `data-template/`** and
+**byte-copied into `demo/`** (so both datasets — and any fork of either — carry
+them). A drift guard (`test/data/p3-doc-drift-golden.test.ts`, the P3 analogue of
+the redaction golden) fails if the two copies diverge or if `SCHEMA.md` drifts
+from the code's collection dirs, id prefixes, monetary fields, cross-links, or
+enums. A worked fixture under `data-template/examples/half-written-trip/` (sparse
+trip + photo + a `manuals/` reference) and an output-contract test
+(`test/data/skill-output-contract.test.ts`) pin down what a correct skill run must
+produce: schema-valid records, zero broken cross-links, the exact derived
+maintenance id, and no monetary field in a crew-authored completion.
+
 ## Write API (P1c)
 
 Authenticated writes are committed to the local data working clone — one commit
@@ -388,11 +432,27 @@ so monetary fields never reach a crew/guest response.
   `buildPayload` — which OMITS blank optionals (never sends `''`; partial entries
   are first-class), coerces declared numbers/arrays, and leaves `body` for the
   server to split out. Co-located `forms.module.css` (never touches `app.css`).
-- `test/data/` — Vitest unit tests for the data layer.
+- `test/data/` — Vitest unit tests for the data layer. The P3 docs are guarded
+  here too: `p3-doc-drift-golden.test.ts` (SCHEMA.md mirrors the code + the three
+  Cowork docs are byte-identical across `data-template/`/`demo/`),
+  `skill-output-contract.test.ts` (a correct `complete-trip` run yields
+  schema-valid, fully cross-linked, money-clean records), plus the `describe.ts`,
+  `schema-doc`, `cowork-docs-mirror`, and `data-template` tests.
 - `test/server/` — Vitest + supertest tests for the server (auth, reads, redaction,
   admin, demo, writes, store, git, photos, static photo/SPA serving, manual-file
   streaming).
 - UI tests live next to the code as `src/ui/**/*.test.tsx`; `vitest.config.ts`
   runs them as a second jsdom project alongside the node server/data project.
-- `demo/` — a sample "Valkyrie" dataset used by tests and demo mode.
+- `demo/` — the populated "Valkyrie" dataset used by tests and demo mode.
+- `data-template/` — the **empty seed** a forker copies to start their own private
+  data repo (distinct from `demo/`): a schema-valid placeholder `boat.yaml`, an
+  empty `quickref.yaml`, and the six collection dirs + `photos/` kept in git by
+  `.gitkeep` files. **A forker instantiates from `data-template/`, never `demo/`**
+  (the latter is the populated *Valkyrie* fixture). `loadDataset('data-template')`
+  yields all-empty collections (guarded by `test/data/data-template.test.ts`).
+  Worked examples — one commented `*.md` per collection, plus a
+  `examples/half-written-trip/` fixture (a sparse trip + a photo + a `manuals/`
+  reference the `complete-trip` skill researches against) — live under
+  `data-template/examples/`, which the loader **never scans** (it only reads
+  `*.md` directly inside a collection dir, non-recursively).
 - `docs/` — design spec, implementation plans, and the `prototype/` design source.

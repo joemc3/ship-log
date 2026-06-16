@@ -1,10 +1,33 @@
 import type { Dataset } from './dataset.js';
+import type { CollectionName } from './write.js';
 
 export interface BrokenLink {
   from: string;   // source record id
   field: string;  // which reference field
   target: string; // the missing target id
 }
+
+/**
+ * Every cross-record reference in the data model, as a single declarative table.
+ * `from`/`target` are collection (singular) names; `field` is the reference
+ * field's path on the source record (`findings.maintId` denotes the per-finding
+ * `maintId` inside a trip's `findings[]`). This is the one source of truth for
+ * cross-links: `checkLinkIntegrity` validates against it and `describe.ts`
+ * surfaces it to the Cowork docs, so the two can never drift.
+ */
+export interface CrossLink {
+  from: CollectionName;
+  field: string;
+  target: CollectionName;
+}
+
+export const CROSS_LINKS: readonly CrossLink[] = [
+  { from: 'trip', field: 'findings.maintId', target: 'maintenance' },
+  { from: 'maintenance', field: 'vendorId', target: 'vendor' },
+  { from: 'maintenance', field: 'fromTripId', target: 'trip' },
+  { from: 'cost', field: 'vendorId', target: 'vendor' },
+  { from: 'cost', field: 'maintId', target: 'maintenance' },
+] as const;
 
 export function checkLinkIntegrity(ds: Dataset): BrokenLink[] {
   const has = {

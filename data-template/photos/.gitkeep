@@ -1,0 +1,2 @@
+# Keeps the photos dir in git. Uploaded/compressed images land here and are
+# referenced from records as `photos/<name>.jpg`. The loader does not scan it.

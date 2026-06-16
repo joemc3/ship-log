@@ -1,0 +1,22 @@
+# boat.yaml — the singleton boat config for THIS Ship's Log.
+# This is the empty seed. Fill in your own boat's details, then commit.
+# Required: `name` (everything else is optional but shown here so you can see
+# the full shape). Validated by boatSchema (see SCHEMA.md). Costs are NEVER
+# stored here — money lives only in costs/ and maintenance.costEst.
+
+name: My Boat            # required — the vessel name shown everywhere
+make: ''                 # builder, e.g. Catalina
+model: ''                # model, e.g. "25" (quote numeric-looking values)
+# year: 1985             # build year — a NUMBER, not a string; uncomment & set
+hailingPort: ''          # home port shown on the welcome page
+
+# specs: free-form key/value pairs (string or number). Add whatever your boat
+# has — loa, beam, draft, engine, fuelCapacity, sailNo, vhfCallSign, mmsi, …
+specs: {}
+
+# welcome: the crew/guest-facing briefing on the welcome page.
+welcome:
+  rules: []              # list of house rules, one string each
+  whatToExpect: ''       # a short paragraph for first-time guests
+  whatToBring: []        # list of what to bring, one string each
+  safety: ''             # where the PFDs, fire extinguisher, flares, VHF live
