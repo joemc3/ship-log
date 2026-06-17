@@ -30,7 +30,7 @@ WORKDIR /app
 # Install all deps (incl. dev: vite, react, typescript) against the lockfile.
 # Cache mount keeps the npm cache warm across builds without bloating layers.
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm \
+RUN --mount=type=cache,target=/root/.npm,id=npm-builder \
     npm ci
 
 # Bring in the sources needed to build the SPA. The server TS is copied too so a
@@ -64,11 +64,15 @@ RUN apt-get update \
 # install is immune to that pruning, lands tsx on PATH, and never mutates
 # package.json or the lockfile. esbuild (tsx's native dep) resolves the correct
 # linux binary because this install runs inside the image.
+# Each stage uses a DISTINCT cache id (id=npm-runtime vs the builder's npm-builder)
+# so the two stages — which BuildKit runs in parallel — never share/race on the npm
+# cache mount. No `npm cache clean` here: a cache MOUNT is not part of the image
+# layer, so cleaning it saves nothing and (when shared) collides with the other
+# stage's npm writes (ENOTEMPTY).
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm \
+RUN --mount=type=cache,target=/root/.npm,id=npm-runtime \
     npm ci --omit=dev \
- && npm install -g tsx@4.22.4 \
- && npm cache clean --force
+ && npm install -g tsx@4.22.4
 
 # Server + shared data-layer source (run directly by tsx). The UI source is NOT
 # needed at runtime — only its built output (copied below).
