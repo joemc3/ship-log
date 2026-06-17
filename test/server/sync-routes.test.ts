@@ -111,10 +111,12 @@ describe('sync routes', () => {
   });
 
   it('demo mode reports sync disabled and exposes no conflict surface', async () => {
-    // Demo store is the bundled demo dir (not a clone) → syncEnabled() is false.
+    // Demo forces sync off (boot/prepareStore opens the demo store with sync:false),
+    // so even though the bundled demo dir sits inside this app repo's own `origin`
+    // remote, demo reports sync disabled.
     const usersPath = join(mkdtempSync(join(tmpdir(), 'shiplog-users-')), 'users.json');
     const config = loadConfig({ USERS_PATH: usersPath }, DEMO);
-    const store = await ShipStore.open(config.dataDir, { now: FIXED_NOW });
+    const store = await ShipStore.open(config.dataDir, { now: FIXED_NOW, sync: !config.demo });
     const users = await UsersStore.load(usersPath);
     const app = createApp({ config, store, users, now: FIXED_NOW });
     // Demo => every request is owner-equivalent; /api/me reports demo + a disabled sync.

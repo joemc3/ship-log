@@ -97,11 +97,15 @@ export class ShipStore {
    */
   static async open(
     dir: string,
-    opts: { now?: () => Date; git?: GitRepo; creds?: GitCredentials } = {},
+    opts: { now?: () => Date; git?: GitRepo; creds?: GitCredentials; sync?: boolean } = {},
   ): Promise<ShipStore> {
     const snapshot = await loadDataset(dir);
     const git = opts.git ?? (await GitRepo.open(dir, opts.creds));
-    const syncable = await git.hasRemote();
+    // `sync: false` (demo mode, or a read-only fallback) forces sync OFF even when
+    // the dir happens to sit inside a repo that has a remote — e.g. the bundled
+    // demo/ lives inside this app repo, whose own `origin` must NOT make the demo
+    // appear syncable. Otherwise a remote on the working clone enables sync.
+    const syncable = opts.sync === false ? false : await git.hasRemote();
     return new ShipStore(dir, snapshot, git, opts.now ?? (() => new Date()), syncable);
   }
 

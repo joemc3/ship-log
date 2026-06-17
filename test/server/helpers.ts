@@ -34,7 +34,9 @@ export async function buildTestApp(opts: { demo?: boolean; clientDir?: string } 
     : { DATA_DIR: dataDir, SESSION_SECRET: 'test-secret', COOKIE_SECURE: 'false', USERS_PATH: usersPath };
   if (opts.clientDir) env.CLIENT_DIR = opts.clientDir;
   const config = loadConfig(env, DEMO);
-  const store = await ShipStore.open(config.dataDir, { now: FIXED_NOW });
+  // Demo forces sync off (the DEMO dir lives inside this app repo, which has an
+  // `origin` remote once published — that must not make demo look syncable).
+  const store = await ShipStore.open(config.dataDir, { now: FIXED_NOW, sync: !config.demo });
   const users = await UsersStore.load(usersPath);
   if (!opts.demo) {
     await users.add('owner1', 'ownerpass123', 'owner');

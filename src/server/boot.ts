@@ -51,13 +51,15 @@ export async function prepareStore(
       // Serve SOMETHING read-only instead of crashing: the partial clone if it
       // has a dataset, else the bundled demo dir as a stand-in.
       const dir = hasDataset(config.dataDir) ? config.dataDir : (opts.fallbackDir ?? config.dataDir);
-      const store = await ShipStore.open(dir, { ...storeOpts, creds });
+      // Read-only stand-in (often the bundled demo dir): never sync.
+      const store = await ShipStore.open(dir, { ...storeOpts, creds, sync: false });
       return { store, readOnly: true, warning };
     }
   }
 
-  // Existing clone, non-repo scratch dir, or demo dir: open in place.
-  const store = await ShipStore.open(config.dataDir, { ...storeOpts, creds });
+  // Existing clone, non-repo scratch dir, or demo dir: open in place. Demo forces
+  // sync off (the demo dir may sit inside this app repo's own remote).
+  const store = await ShipStore.open(config.dataDir, { ...storeOpts, creds, sync: !config.demo });
   return { store, readOnly: false };
 }
 
