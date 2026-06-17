@@ -11,7 +11,7 @@ editable hub that **you own** — your data lives as plain Markdown files in a g
 repo (no database, no third-party cloud), so it's portable, versioned, and yours
 forever.
 
-It's designed to be **forked for one boat**: the app is generic, and everything
+It's designed to run for a **single boat**: the app is generic, and everything
 boat-specific — the name, the specs, the trips, the welcome page your guests see —
 comes from your data.
 
@@ -68,20 +68,41 @@ needs attention.
 
 ## How it works
 
-- **Git is the source of truth.** Records are Markdown files with YAML frontmatter
-  (structured fields) and a body (the narrative). The app reads them into memory,
-  serves a REST API, and commits every change back as one commit authored by the
-  logged-in user.
-- **Two repos.** This repo (the app — public, forkable) and a separate **private
-  data repo** for your boat, seeded from the included [`data-template/`](data-template/).
-  App updates never collide with your data history, and your data stays private.
-- **Two-way sync.** The running app is the single server-side writer; it pulls the
-  data repo on a timer and after every write, pushing changes and surfacing the rare
-  conflict safely (it never force-pushes). Claude Cowork edits the same repo over
-  git — the two converge automatically.
+Ship's Log is **two separate git repositories**, and that split is the whole idea:
+
+- **The app repo** (this one) is *code only* — generic, public, no boat data. You
+  **clone** it to run it and `git pull` for updates. *(Forking is optional — only if
+  you want your own copy to modify.)*
+- **Your data repo** is a *separate, private* repo holding your boat's data
+  (`boat.yaml`, trips, maintenance, photos), which you create from the included
+  [`data-template/`](data-template/) — one per boat.
+
+Everything syncs through the **private data repo**; the public app repo is never in
+the sync loop, so your data never becomes public:
+
+```
+   app repo (public, CODE only)        your data repo (PRIVATE, your boat's DATA)
+        │  clone / pull                        ▲   ▲
+        ▼  (install + update only)       clone │   │ push
+   ┌────────────────┐                          │   │
+   │ the running app │── clone · pull · push ───┘   │
+   │   (Docker)      │                              │
+   └────────────────┘                              │
+   ┌────────────────┐                              │
+   │  Claude Cowork  │── clone · edit · push ───────┘
+   └────────────────┘
+```
+
+- **Git is the source of truth.** Each record is a Markdown file (YAML frontmatter +
+  a narrative body). The running app is the single server-side writer — it commits
+  every in-app change to the **data** repo, pushes, and pulls on a timer; conflicts
+  are surfaced safely and it never force-pushes.
+- **Cowork works on your private data repo — never the app repo.** It clones your
+  data repo, finishes a half-written trip (researching the web *and your own
+  manuals*), and pushes; the app converges on its next pull. **No AI runs inside the
+  app itself.**
 - **Built end-to-end in TypeScript** — a Vite + React single-page app, a thin Node
-  (Express) server, and a headless data layer — so the barrier to forking and
-  hosting it yourself stays low.
+  (Express) server, and a headless data layer — to keep self-hosting approachable.
 
 ## Roles & access
 
@@ -108,15 +129,25 @@ git; it never touches the running app.
 
 ## Self-hosting
 
-Ship's Log runs as a single Docker image behind a tunnel (the reference deployment
-uses [Pangolin](https://github.com/fosrl/pangolin), no exposed ports). The full,
-copy-paste first-deploy walkthrough — create the private data repo, mint a deploy
-key, set secrets, bring it up, wire the tunnel — lives in
-**[`docs/DEPLOY-CHECKLIST.md`](docs/DEPLOY-CHECKLIST.md)**.
+Ship's Log ships as a Docker image. **Two things are required no matter how you
+host it:** a private data repo (from `data-template/`) and a deploy credential for
+it. Then run it however you like:
+
+- **Docker behind your own reverse proxy** (the common case) — `docker compose up -d`
+  serves it on `:8080`; put Caddy / nginx / Traefik / Cloudflare in front for HTTPS.
+- **Docker behind a [Pangolin](https://github.com/fosrl/pangolin) tunnel** with no
+  exposed ports — the included `docker-compose.vps.yml` override (the reference
+  deployment).
+- **Without Docker** — `npm ci && npm run build:ui && npm start` behind any HTTPS
+  proxy.
+
+The full, copy-paste, beginner-friendly walkthrough for all of these — create the
+data repo, mint the credential, set secrets, run it, wire up HTTPS, and use Cowork —
+is in **[`docs/DEPLOY-CHECKLIST.md`](docs/DEPLOY-CHECKLIST.md)**.
 
 ```bash
-docker compose up --build                                              # local, on :8080
-docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d   # behind the tunnel
+docker compose up -d --build                                          # Docker, on :8080 (add your own TLS proxy)
+docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d  # Docker + Pangolin tunnel (no open ports)
 ```
 
 Key environment variables (full reference in the deploy checklist):
