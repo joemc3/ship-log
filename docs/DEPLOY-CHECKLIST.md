@@ -17,7 +17,7 @@ that makes everything else click:
 
 | | What it is | Public? | Who writes to it |
 |---|---|---|---|
-| **The app repo** (`sailing` / *ship-log*) | the application **code** — generic, no boat data | public is fine | you, only to update the app (`git pull`) |
+| **The app repo** (`ship-log`) | the application **code** — generic, no boat data | public is fine | you, only to update the app (`git pull`) |
 | **Your data repo** (e.g. `valkyrie-log`) | **your boat's data** — `boat.yaml`, trips, maintenance, photos | **private** | the running app **and** Claude Cowork, over git |
 
 **Everything syncs through your private data repo. The public app repo is never in
@@ -65,20 +65,20 @@ You're creating a **brand-new, private** GitHub repo and seeding it from the
 
 ```bash
 # 0. get the app repo (so you have data-template/ to copy from)
-git clone https://github.com/joemc3/sailing.git
-#    -> this folder (e.g. ~/sailing) is "the app repo" below.
+git clone https://github.com/joemc3/ship-log.git
+#    -> this folder (e.g. ~/ship-log) is "the app repo" below.
 
 # 1. create a NEW, EMPTY, PRIVATE repo on GitHub for your boat's data:
 gh repo create valkyrie-log --private        # use your own name; --private matters
 #    (or make it in the GitHub web UI: New repository -> Private -> Create)
 
 # 2. clone that empty data repo somewhere SEPARATE from the app repo:
-cd ~                                          # NOT inside ~/sailing
+cd ~                                          # NOT inside ~/ship-log
 git clone https://github.com/joemc3/valkyrie-log.git
 cd valkyrie-log
 
 # 3. copy the TEMPLATE out of the app repo into it (trailing "/." copies contents):
-cp -R ~/sailing/data-template/. .
+cp -R ~/ship-log/data-template/. .
 #    you now have: boat.yaml, empty trips/ maintenance/ ... AND the Cowork docs
 #    (AGENTS.md, SCHEMA.md, .claude/skills/complete-trip/) that came with the template.
 
@@ -106,7 +106,7 @@ clone, pull, and push). Pick **one** mode.
 
 **A) SSH deploy key (recommended):**
 ```bash
-cd ~/sailing
+cd ~/ship-log
 ssh-keygen -t ed25519 -f ./deploy_key -N ''   # makes deploy_key (private) + deploy_key.pub
 ```
 On GitHub: **valkyrie-log → Settings → Deploy keys → Add deploy key** → paste
@@ -192,15 +192,15 @@ that stack's docker network already exists.
            ipv4_address: 172.18.0.22    # ← your free static IP
    ```
    **Remember this IP — it's what Pangolin will target.**
-3. **Create the secrets** the override reads (in `~/sailing/secrets/`):
+3. **Create the secrets** the override reads (in `~/ship-log/secrets/`):
    ```bash
-   cd ~/sailing && mkdir -p secrets
+   cd ~/ship-log && mkdir -p secrets
    openssl rand -hex 32            > secrets/session_secret    # SESSION_SECRET
    printf 'a-strong-password'      > secrets/owner_password     # OWNER_PASSWORD
    cp ./deploy_key                   secrets/data_deploy_key     # SSH mode (Part 2A): the PRIVATE key
    chmod 600 secrets/*
    ```
-4. **Set the non-secret env** in `~/sailing/.env`:
+4. **Set the non-secret env** in `~/ship-log/.env`:
    ```bash
    OWNER_USERNAME=joe
    DATA_REPO_URL=git@github.com:joemc3/valkyrie-log.git    # SSH form (matches the deploy key)
@@ -234,7 +234,7 @@ that stack's docker network already exists.
 ## Option C — Without Docker (advanced)
 
 ```bash
-cd ~/sailing
+cd ~/ship-log
 npm ci
 npm run build:ui                              # builds the SPA into dist/ui
 DATA_REPO_URL=git@github.com:joemc3/valkyrie-log.git \
@@ -259,7 +259,7 @@ users (crew see everything except costs).
 `shiplog-users` Docker volume (or `./var/` without Docker). It's *deployment state* —
 never in git, and the one thing your data repo can't regenerate. Snapshot it:
 ```bash
-docker run --rm -v sailing_shiplog-users:/v -v "$PWD":/out alpine \
+docker run --rm -v ship-log_shiplog-users:/v -v "$PWD":/out alpine \
   cp /v/users.json /out/users.backup.json     # volume name = <compose-project>_shiplog-users
 ```
 
@@ -288,7 +288,7 @@ cd valkyrie-log                                     # AGENTS.md/SCHEMA.md/the sk
 |---|---|
 | Docker image | `ship-log:latest` |
 | Compose service / network alias | `shiplog` |
-| Container name | `<project>-shiplog-1` (project = the compose dir, e.g. `sailing`) |
+| Container name | `<project>-shiplog-1` (project = the compose dir, e.g. `ship-log`) |
 | App port (internal HTTP) | `8080` — base compose publishes it; the VPS override publishes nothing |
 | Pangolin target (Option B) | `http://<pinned-IP>:8080` (default `172.18.0.22:8080`) |
 | External network (Option B) | `pangolin` (must already exist; rename in `docker-compose.vps.yml` if yours differs) |
