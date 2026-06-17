@@ -1,120 +1,285 @@
-# Ship's Log — Operator deploy & Cowork checklist
+# Ship's Log — self-hosting walkthrough
 
-The app is fully built and **locally verified** (P1a–P3): data layer, REST API,
-auth + server-side cost redaction, the SPA (8 pages), record writes, two-way git
-sync, Docker/compose, and Cowork enablement. Full test suite is green (520 tests).
+This is the step-by-step for standing up Ship's Log on your own VPS, written to
+assume **nothing**. The app is built and tested; everything here is the operator
+work only you can do (your accounts, your secrets, your server).
 
-Everything below is a step **only you can do** — it needs your accounts, secrets,
-and infrastructure. Nothing here blocks local development or the demo. Run the
-sections in order. See `README.md` for the narrative version.
-
-> Run the whole app locally with **no setup** first: `npm run build:ui && npm start`
-> then open <http://localhost:8080> (demo mode over the bundled Valkyrie data).
+> **Just want to look first?** You don't need any of this to try it. On any machine:
+> `npm install && npm run build:ui && npm start`, then open <http://localhost:8080>
+> — it runs in demo mode over a sample boat with no setup.
 
 ---
 
-## A. Create the private data repo (`valkyrie-log`)
+## How the pieces fit (read this first)
 
-The app code lives in this repo (`ship-log`, public/forkable). Your boat's data
-lives in a **separate private repo**, seeded from `data-template/`.
+Ship's Log is **two git repositories**, and keeping them straight is the thing that
+makes everything else click:
+
+| | What it is | Where it lives | Who edits it |
+|---|---|---|---|
+| **The app repo** (`sailing` / *ship-log*) | the generic application code — no boat data | you clone it onto your VPS and run it in Docker | you (for updates), via `git pull` |
+| **Your data repo** (e.g. `valkyrie-log`) | *your boat's* data — `boat.yaml`, trips, maintenance, photos… | a **separate, private** GitHub repo | the running app + Claude Cowork, over git |
+
+**How they connect:** the app runs in a Docker container on your VPS. On first boot
+it **clones your private data repo** into a volume and serves it. When you edit
+something in the web app, it commits and pushes back to that data repo. That's it.
+
+You create your data repo by copying the **`data-template/`** folder — which lives
+*inside the app repo you just cloned* — into a new, empty private repo. The template
+is the empty skeleton (an empty `boat.yaml`, empty collection folders, and the
+Cowork docs); `demo/` is the *filled-in* sample (Valkyrie) and is **not** your
+starting point.
+
+```
+your VPS
+├── ~/sailing/                 ← the APP repo you cloned (code + data-template/)
+│   ├── data-template/         ← copy THIS to seed your data repo
+│   ├── docker-compose.yml
+│   └── docker-compose.vps.yml
+│
+└── (Docker)
+    └── container "shiplog"  ──clones──▶  github.com/you/valkyrie-log  (your DATA repo)
+            │
+            └── reachable only via your Pangolin tunnel (no open ports)
+```
+
+## What you'll need before you start
+
+- A **VPS** that already runs Docker **and your Pangolin/Gerbil tunnel stack** (the
+  same setup your other tunneled services use). This guide does **not** install
+  Pangolin — it assumes it's already there, the way your DA-RAG deployment is.
+- A **GitHub account** (for the private data repo) and the `gh` CLI or the web UI.
+- A **domain/subdomain** you can point at Pangolin (e.g. `boat.yourdomain.com`).
+
+---
+
+## Step 1 — Put the app on your VPS
 
 ```bash
-# from anywhere
-gh repo create valkyrie-log --private --clone
+git clone https://github.com/joemc3/sailing.git
+cd sailing
+# from here on, this directory (e.g. ~/sailing) is referred to as the app repo.
+```
+
+## Step 2 — Create your boat's private data repo
+
+This is the part that wasn't clear before. You're **copying `data-template/` out of
+the app repo** (Step 1) **into a brand-new, empty private repo**.
+
+```bash
+# 1. make a new EMPTY private repo on GitHub (web UI, or:)
+gh repo create valkyrie-log --private        # use your own name; --private is important
+
+# 2. clone the empty repo somewhere SEPARATE from the app repo
+cd ~                                          # not inside ~/sailing
+git clone https://github.com/joemc3/valkyrie-log.git
 cd valkyrie-log
-cp -R /Users/joemc3/tmp/sailing/data-template/. .   # ships AGENTS.md, SCHEMA.md, the Cowork skill, empty collections
-# edit boat.yaml: name, make, model, year, hailingPort, specs{}, welcome{rules,whatToExpect,whatToBring,safety}
-#   (optionally copy records from ../ship-log/demo/ as a starting point, or start empty and fill via the app)
-git add -A && git commit -m "Seed Valkyrie data from data-template"
-git push -u origin main
+
+# 3. copy the TEMPLATE (from the app repo) into it — note the trailing "/." copies contents
+cp -R ~/sailing/data-template/. .
+
+# 4. make it yours: edit boat.yaml (name, make, model, year, hailingPort, specs,
+#    and the welcome block your guests see — rules / whatToExpect / whatToBring / safety)
+$EDITOR boat.yaml
+
+# 5. commit + push
+git add -A
+git commit -m "Seed Valkyrie data from data-template"
+git push
 ```
 
-`AGENTS.md`, `SCHEMA.md`, and `.claude/skills/complete-trip/` come along
-automatically, so Cowork is enabled the moment it clones this repo.
+You now have an (almost empty) data repo. It already includes `AGENTS.md`,
+`SCHEMA.md`, and the `complete-trip` Cowork skill (they came from the template), so
+Cowork is ready the moment it clones this repo. You'll fill in trips, maintenance,
+etc. **through the web app** once it's running — or copy a few records out of the app
+repo's `demo/` folders as examples.
 
-## B. Mint the deploy credential (pick ONE)
+> Note the clone URL from Step 2 — you'll set it as `DATA_REPO_URL` later. Use the
+> **SSH** form (`git@github.com:joemc3/valkyrie-log.git`) if you pick the SSH key in
+> Step 3, or the **HTTPS** form if you pick a token.
 
-**SSH deploy key (recommended — repo-scoped, no expiry):**
+## Step 3 — Give the app a key to your data repo
+
+The app needs read **and write** access to that one private repo (to clone, pull,
+and push). Pick **one** credential mode.
+
+**A) SSH deploy key (recommended — scoped to the one repo, no expiry):**
 ```bash
-ssh-keygen -t ed25519 -f ./valkyrie-deploy -C "shiplog-deploy" -N ""
-# GitHub → valkyrie-log → Settings → Deploy keys → Add key → paste valkyrie-deploy.pub
-#   ☑ Allow write access
-# DATA_REPO_URL will be:  git@github.com:joemc3/valkyrie-log.git
+cd ~/sailing                                  # back in the app repo
+ssh-keygen -t ed25519 -f ./deploy_key -N ''   # creates deploy_key (private) + deploy_key.pub
 ```
-**OR fine-grained PAT** scoped to just `valkyrie-log` with Contents: read+write;
-use an `https://` `DATA_REPO_URL` and set `DATA_REPO_TOKEN`.
+Then on GitHub: **valkyrie-log → Settings → Deploy keys → Add deploy key** → paste
+the contents of `deploy_key.pub` → **check "Allow write access"** → Add.
+Use the **SSH** `DATA_REPO_URL` (`git@github.com:joemc3/valkyrie-log.git`).
 
-## C. Production secrets (Docker secrets — never commit)
+**B) Fine-grained PAT (alternative):** create a token scoped to *only* `valkyrie-log`
+with **Contents: read and write**, use the **HTTPS** `DATA_REPO_URL`, and supply the
+token as `DATA_REPO_TOKEN` (or the `data_deploy_key`/`_FILE` secret). Use this *or*
+the key, not both.
 
-`docker-compose.vps.yml` expects files under `./secrets/`:
+## Step 4 — Create the secrets
+
+The VPS compose file reads three Docker secrets from a `./secrets/` folder **next to
+the compose files** (in `~/sailing`). Never commit these.
+
 ```bash
+cd ~/sailing
 mkdir -p secrets
-openssl rand -hex 32           > secrets/session_secret     # SESSION_SECRET
-printf 'a-strong-owner-pass'   > secrets/owner_password     # OWNER_PASSWORD
-cp ./valkyrie-deploy             secrets/data_deploy_key      # the PRIVATE key (or a PAT)
+openssl rand -hex 32              > secrets/session_secret    # signs login cookies
+printf 'choose-a-strong-pass'    > secrets/owner_password     # your first-owner password
+cp ./deploy_key                    secrets/data_deploy_key     # SSH mode: the PRIVATE key
 chmod 600 secrets/*
 ```
-Set `OWNER_USERNAME` (env), and `DATA_REPO_URL` to your repo's clone URL.
+(Your owner *username* is plain config, set in Step 6 — only the password is a secret.)
 
-## D. VPS + Pangolin (mirror the DA-RAG deployment)
+## Step 5 — Put the container on your Pangolin network
 
-1. Confirm the host has Docker + the Pangolin/Gerbil stack and the external
-   network: `docker network inspect pangolin`.
-2. **Reconcile the pinned IP.** `docker-compose.vps.yml` pins `172.18.0.22` as a
-   **placeholder**. Check the `pangolin` subnet and a free address; update the
-   `ipv4_address` if it collides with Gerbil's IPAM.
-3. Build the image where Docker Hub is reachable (your machine / CI), then bring
-   it up on the VPS:
-   ```bash
-   docker compose -f docker-compose.yml -f docker-compose.vps.yml config   # validate (ports none, pangolin external)
-   docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
-   docker compose logs -f    # watch for "Bootstrapped owner" + "Sync scheduler running (pull every …)"
-   ```
-4. Add a **Pangolin tunnel resource** pointing at the app container
-   (pinned `IP:8080`, **no SSO** — the app gates itself), and create/point a
-   **DNS hostname** at it.
-5. Open the hostname → log in as `OWNER_USERNAME` → **Admin** → add crew/owner
-   accounts.
+This is the networking piece. The VPS override
+(`docker-compose.vps.yml`) **does not publish any ports** — instead it joins the
+container to the Docker network your Pangolin/Gerbil stack already runs on, and gives
+it a fixed IP there so the tunnel always finds it. You need to get two values right:
 
-## E. Back up the users store
+**1. The network name.** The override expects an **external** network literally named
+`pangolin`. Confirm what yours is actually called:
+```bash
+docker network ls            # find the network your Pangolin/Gerbil/Traefik stack uses
+docker network inspect <that-network>   # note its "Subnet" (e.g. 172.18.0.0/16)
+```
+If your network is **not** named `pangolin`, edit the bottom of
+`docker-compose.vps.yml` and change the network name to match yours (in both the
+`services.shiplog.networks:` block and the top-level `networks:` block).
 
-`users.json` lives in the **`shiplog-users` named volume** (deployment state,
-outside git). Back it up, or rely on owner-bootstrap + re-adding crew to recreate
-it. It must **never** enter the data repo (the app fails loud at boot if
-`USERS_PATH` resolves inside `DATA_DIR`).
+**2. A free static IP in that subnet.** The override pins `172.18.0.22` as a
+**placeholder**. If your subnet is different, or `.22` is taken, change it:
+```yaml
+# docker-compose.vps.yml
+services:
+  shiplog:
+    networks:
+      pangolin:
+        ipv4_address: 172.18.0.22   # ← set to a free, high address inside YOUR subnet
+```
+Pick something outside whatever DHCP range Gerbil hands out, the same way you'd pin
+any other tunneled service. **Remember this IP — it's what Pangolin will target.**
 
-## F. Cowork — the "finish my half-written trip" workflow
+> **About ports:** the app listens on **8080, plain HTTP, only inside the Docker
+> network** — it never uses port 80 and never does TLS itself. Your Pangolin/Traefik
+> front end is what owns the public `:443`/`:80` and the certificate; it forwards to
+> the container's `8080`. That's why the VPS shape publishes **no** host ports.
 
-1. Install/enable Claude Cowork.
-2. Clone `valkyrie-log` (it already ships `AGENTS.md`, `SCHEMA.md`, and
-   `.claude/skills/complete-trip/SKILL.md`).
-3. Drop in a half-written trip + photos (see
-   `data-template/examples/half-written-trip/` for the shape), then run the
-   **complete-trip** skill: it reads the trip + photos, researches the fix (web +
-   the boat's own `manuals/`), writes the narrative, opens the linked maintenance
-   item with a two-way cross-link, commits, and pushes.
-4. The deployed app converges on the push within `PULL_INTERVAL` (default 5 min).
+## Step 6 — Set the non-secret config
+
+Create a `.env` file next to the compose files (`~/sailing/.env`):
+```bash
+OWNER_USERNAME=joe                                  # your first-owner login name
+DATA_REPO_URL=git@github.com:joemc3/valkyrie-log.git   # SSH form (matches Step 3A)
+DATA_DIR=/app/data                                  # clone path inside the container (leave as-is)
+COOKIE_SECURE=true                                  # you're behind TLS via Pangolin
+# PULL_INTERVAL=300                                 # optional: sync every N seconds (default 300 = 5 min)
+```
+(`SESSION_SECRET` and `OWNER_PASSWORD` come from the secret files via the override —
+don't put them here.)
+
+## Step 7 — Bring it up
+
+```bash
+cd ~/sailing
+# sanity-check the merged config (ports cleared, network external, IP pinned):
+docker compose -f docker-compose.yml -f docker-compose.vps.yml config
+
+# build + start, detached:
+docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
+
+# watch the boot — you want to see "Bootstrapped owner" + "Sync scheduler running":
+docker compose logs -f shiplog
+```
+On first boot the app clones `valkyrie-log` into the `shiplog-data` volume,
+bootstraps your owner account, and starts the sync scheduler. If a credential is
+wrong it **boots read-only** with a warning (serving the demo data) rather than
+crashing — fix the key/token and restart.
+
+## Step 8 — Create the Pangolin tunnel resource
+
+Now point your tunnel at the container. In Pangolin, create a resource the same way
+you do for your other services, using these values:
+
+| Pangolin setting | Value | Where it comes from |
+|---|---|---|
+| Public hostname / domain | e.g. `boat.yourdomain.com` | you choose it; point its DNS at your Pangolin server |
+| Target host (internal) | `172.18.0.22` | the pinned IP from Step 5 (or the service name `shiplog` if your setup uses Docker DNS) |
+| Target port | `8080` | the app's internal HTTP port |
+| Target scheme | `http` (not https) | TLS is terminated by Pangolin/Traefik, not the app |
+| Network | the same `pangolin` network the container joined | so Traefik can reach `172.18.0.22:8080` |
+| SSO / auth | **off** | the app gates itself (its own login + roles) |
+
+For reference, the running pieces are: **image** `ship-log:latest`, **compose
+service** `shiplog`, **container** `<project>-shiplog-1` (project name = the
+directory you ran compose in, e.g. `sailing-shiplog-1`), with the network alias
+`shiplog`. The robust target is the **pinned IP `172.18.0.22:8080`** — that's the
+whole reason the IP is pinned.
+
+## Step 9 — First login
+
+Open `https://boat.yourdomain.com` (through the tunnel). Log in with `OWNER_USERNAME`
+and the password you set in `secrets/owner_password`. Then:
+- **Account** → change that bootstrap password to something only you know.
+- **Admin** → add your crew/owner accounts (crew see everything except costs).
+
+## Step 10 — Back up the users store
+
+`users.json` (your accounts + hashed passwords) lives in the **`shiplog-users`**
+Docker volume — it's *deployment state*, never committed to git, and the one thing
+your data repo can't regenerate. Back it up:
+```bash
+docker run --rm -v sailing_shiplog-users:/v -v "$PWD":/out alpine \
+  cp /v/users.json /out/users.backup.json     # volume name = <project>_shiplog-users
+```
+(Or just re-bootstrap the owner and re-add users if you ever lose it.)
 
 ---
+
+## Cowork — the "finish my half-written trip" workflow
+
+Once the data repo exists, Claude Cowork can finish entries for you:
+1. Install/enable Claude Cowork.
+2. Clone `valkyrie-log` (it already ships `AGENTS.md`, `SCHEMA.md`, and
+   `.claude/skills/complete-trip/SKILL.md` from the template).
+3. Drop in a half-written trip + photos (see
+   `data-template/examples/half-written-trip/` for the shape) and run the
+   **complete-trip** skill: it reads the trip + photos, researches against the web and
+   your own `manuals/`, writes the narrative, opens the linked maintenance item, and
+   pushes.
+4. The deployed app pulls the change within `PULL_INTERVAL` (default 5 min).
+
+## Quick reference
+
+| Thing | Value |
+|---|---|
+| Docker image | `ship-log:latest` |
+| Compose service / network alias | `shiplog` |
+| Container name | `<project>-shiplog-1` (project = compose dir, e.g. `sailing`) |
+| App port (internal HTTP) | `8080` — no host ports published on the VPS |
+| Pangolin target | `http://<pinned-IP>:8080` (default `172.18.0.22:8080`) |
+| External network | `pangolin` (must already exist; rename in `docker-compose.vps.yml` if yours differs) |
+| Data volume | `shiplog-data` → `/app/data` (the data-repo clone) |
+| Users volume (back up) | `shiplog-users` → `/app/var` (`users.json`) |
 
 ## By-design notes
 
-- **Demo mode** (no `DATA_DIR`/`DATA_REPO_URL`) serves the fictional Valkyrie
-  dataset **including sample costs** (the demo viewer is owner-equivalent). That's
-  intended for evaluation — don't point the public demo at a real, cost-bearing
-  dataset.
-- `docker build` needs Docker Hub egress; run it on your machine or CI.
-- Cost data is owner-only and redacted **server-side** for crew/guest across
-  reads, search, derived views, and write responses (the `redaction-golden` and
-  doc-drift guard tests protect this — keep them green).
+- **Demo mode** (no `DATA_REPO_URL`/`DATA_DIR`) serves the fictional Valkyrie data
+  *including* sample costs (the demo viewer is owner-equivalent). Don't point a public
+  demo at a real, cost-bearing dataset.
+- `docker build` needs Docker Hub access for the base images — build on the VPS (or
+  any machine with egress); it's the `--build` in Step 7.
+- Cost data is owner-only and redacted **server-side**; it never reaches a crew/guest
+  browser. The app, not the tunnel, enforces all of this — Pangolin runs **without
+  SSO** on purpose.
 
-## Known non-blocking follow-ups (optional polish, not required to ship)
+## Known non-blocking follow-ups (optional polish)
 
-- **SPA sync-conflict banner**: `GET /api/sync` is built and tested; the small UI
-  banner that consumes it is deferred.
-- **Photo attach is two steps** (`POST /api/photos` → `PUT` the ref onto the
-  record); a failure between them could orphan an uploaded blob.
-- **Role change doesn't revoke a live session** until the cookie TTL expires or
-  the user re-logs in (stateless sessions).
-- **Cold-start test flake**: the very first `npm test` in a fresh shell can hit a
-  transient "socket hang up"; it's green on retry.
+- A small in-app banner for the rare git **sync conflict** (the `GET /api/sync` API
+  is built; the UI banner is deferred).
+- Attaching a photo is two requests (upload, then save the record); a failure between
+  them could leave an orphaned image file.
+- Changing a user's role doesn't end their current session until it expires or they
+  log in again.
