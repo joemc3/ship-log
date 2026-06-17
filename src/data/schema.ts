@@ -121,6 +121,7 @@ export const boatSchema = z.object({
   model: z.string().optional(),
   year: z.number().optional(),
   hailingPort: z.string().optional(),
+  heroPhoto: z.string().optional(),
   specs: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
   welcome: z.object({
     rules: z.array(z.string()).optional(),

@@ -55,6 +55,10 @@ describe('transport hardening headers', () => {
       expect(csp).toMatch(/img-src[^;]*data:/);
       // No framing (clickjacking guard).
       expect(csp).toMatch(/frame-ancestors 'none'/);
+      // The Google Fonts the SPA loads (Spectral + IBM Plex) must be allowed, or
+      // the design silently falls back to system fonts.
+      expect(csp).toMatch(/style-src[^;]*fonts\.googleapis\.com/);
+      expect(csp).toMatch(/font-src[^;]*fonts\.gstatic\.com/);
       // Must NOT open the policy up to arbitrary origins.
       expect(csp).not.toMatch(/\*/);
     });

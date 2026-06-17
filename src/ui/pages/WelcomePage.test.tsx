@@ -173,6 +173,20 @@ describe('WelcomePage', () => {
     expect(screen.queryByText(/cost/i)).not.toBeInTheDocument();
   });
 
+  it('renders a real hero <img> pointing at /api/welcome/hero when heroPhoto is set', async () => {
+    mockedApi.welcome.mockResolvedValue({ ...FULL, heroPhoto: 'photos/boat-hero.jpg' });
+    renderWelcome(session({}));
+    const img = await screen.findByRole('img', { name: /valkyrie under sail/i });
+    expect(img).toHaveAttribute('src', '/api/welcome/hero');
+  });
+
+  it('falls back to the placeholder (no hero <img>) when heroPhoto is absent', async () => {
+    // FULL has no heroPhoto.
+    renderWelcome(session({}));
+    await screen.findByRole('heading', { name: 'Valkyrie' });
+    expect(screen.queryByRole('img', { name: /valkyrie under sail/i })).not.toBeInTheDocument();
+  });
+
   it('shows a loading state before the welcome block resolves', () => {
     let resolve!: (w: Welcome) => void;
     mockedApi.welcome.mockReturnValue(new Promise<Welcome>((r) => { resolve = r; }));

@@ -254,6 +254,7 @@ everything else is optional.
 | `model`       | string                            | no  | quote numeric-looking values |
 | `year`        | number                            | no  | build year (a number, not a string) |
 | `hailingPort` | string                            | no  | |
+| `heroPhoto`   | string                            | no  | repo-relative path to a hero image shown on the public Welcome page, e.g. `photos/boat-hero.jpg` |
 | `specs`       | record<string, string \| number> | no  | free key/value specs (loa, beam, draft, engine, …) |
 | `welcome`     | object                            | no  | crew/guest welcome-page content |
 

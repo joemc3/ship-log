@@ -163,12 +163,26 @@ export default function WelcomePage(): JSX.Element {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'stretch' }}>
-              <Photo
-                label={`${w.name} under sail`}
-                h={260}
-                icon="sail"
-                style={{ width: '100%', border: '1px solid rgba(242,232,213,0.2)' }}
-              />
+              {w.heroPhoto ? (
+                <img
+                  src="/api/welcome/hero"
+                  alt={`${w.name} under sail`}
+                  style={{
+                    width: '100%',
+                    height: 260,
+                    objectFit: 'cover',
+                    borderRadius: 'var(--r-md)',
+                    border: '1px solid rgba(242,232,213,0.2)',
+                  }}
+                />
+              ) : (
+                <Photo
+                  label={`${w.name} under sail`}
+                  h={260}
+                  icon="sail"
+                  style={{ width: '100%', border: '1px solid rgba(242,232,213,0.2)' }}
+                />
+              )}
             </div>
           </div>
         </div>

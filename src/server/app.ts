@@ -14,7 +14,7 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerDataRoutes } from './routes/data.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { registerWriteRoutes } from './routes/writes.js';
-import { registerPhotoRoute, registerManualRoute, registerSpaStatic } from './static.js';
+import { registerPhotoRoute, registerManualRoute, registerWelcomeHeroRoute, registerSpaStatic } from './static.js';
 
 export interface AppContext {
   config: Config;
@@ -30,8 +30,10 @@ const HSTS_MAX_AGE = 31_536_000;
  * Content-Security-Policy for the same-origin Vite/React SPA. Everything is served
  * from the app's own origin, so the base policy is `'self'`. Notes:
  *  - `script-src 'self'`: the built bundle is same-origin JS; no inline scripts.
- *  - `style-src 'self' 'unsafe-inline'`: Vite/React inject a few inline styles;
- *    `'unsafe-inline'` for styles only (NOT scripts) is the pragmatic SPA tradeoff.
+ *  - `style-src 'self' 'unsafe-inline' fonts.googleapis.com`: Vite/React inject a
+ *    few inline styles, and index.html loads the Google Fonts stylesheet (Spectral
+ *    + IBM Plex). `'unsafe-inline'` is for styles only (NOT scripts).
+ *  - `font-src 'self' fonts.gstatic.com`: the Google Fonts web-font files.
  *  - `img-src 'self' data:`: photos are same-origin, plus inline `data:` thumbnails.
  *  - `connect-src 'self'`: the SPA only talks to its own /api.
  *  - `frame-ancestors 'none'` + `object-src 'none'`: anti-clickjacking / no plugins.
@@ -42,9 +44,11 @@ function contentSecurityPolicy(tls: boolean): string {
   const directives = [
     "default-src 'self'",
     "script-src 'self'",
-    "style-src 'self' 'unsafe-inline'",
+    // index.html loads the Google Fonts stylesheet (Spectral + IBM Plex); allow it
+    // and its web-font files, or the design silently falls back to system fonts.
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data:",
-    "font-src 'self'",
+    "font-src 'self' https://fonts.gstatic.com",
     "connect-src 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
@@ -96,6 +100,7 @@ export function createApp(deps: Omit<AppContext, 'now'> & { now?: () => Date }):
   registerWriteRoutes(app, ctx);
   registerPhotoRoute(app, ctx);
   registerManualRoute(app, ctx);
+  registerWelcomeHeroRoute(app, ctx);
 
   // Any unmatched /api, /photos, or /files path -> JSON 404. Registered BEFORE
   // the SPA so an unknown API/asset route is always a JSON 404, never index.html.

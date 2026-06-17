@@ -3,6 +3,7 @@ make: Catalina
 model: "25"
 year: 1985
 hailingPort: Gull Point
+heroPhoto: photos/boat-hero.jpg
 specs:
   loa: "25 ft"
   lwl: "22 ft 2 in"

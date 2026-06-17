@@ -138,4 +138,14 @@ describe('manual/quickref/boat schemas', () => {
     const boat = { name: 'Valkyrie', make: 'Catalina', model: '25', year: 1985, welcome: { rules: ['Life jackets on deck'], whatToBring: ['Soft-soled shoes'] } };
     expect(boatSchema.parse(boat)).toMatchObject({ name: 'Valkyrie' });
   });
+
+  it('accepts a boat with an optional heroPhoto (a repo-relative photo path)', () => {
+    const boat = { name: 'Valkyrie', heroPhoto: 'photos/boat-hero.jpg' };
+    expect(boatSchema.parse(boat)).toMatchObject({ heroPhoto: 'photos/boat-hero.jpg' });
+  });
+
+  it('still accepts a boat with no heroPhoto', () => {
+    expect(() => boatSchema.parse({ name: 'Valkyrie' })).not.toThrow();
+    expect(boatSchema.parse({ name: 'Valkyrie' }).heroPhoto).toBeUndefined();
+  });
 });

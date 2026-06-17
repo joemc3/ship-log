@@ -73,6 +73,7 @@ export interface Welcome {
   model?: string;
   year?: number;
   hailingPort?: string;
+  heroPhoto?: string;
   welcome: {
     rules?: string[];
     whatToExpect?: string;

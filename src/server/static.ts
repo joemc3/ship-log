@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
-import { join, resolve, sep, extname, normalize } from 'node:path';
+import { join, resolve, sep, extname, normalize, basename } from 'node:path';
 import type { Express, Request, Response, NextFunction } from 'express';
 import type { AppContext } from './app.js';
 import { requireAuth } from './middleware.js';
@@ -123,6 +123,54 @@ export function registerPhotoRoute(app: Express, ctx: AppContext): void {
     const abs = resolve(join(photosRoot, name));
     if (!isInside(photosRoot, abs)) {
       res.status(400).json({ error: 'bad photo name' });
+      return;
+    }
+    const ok = await streamFile(res, abs, contentType);
+    if (!ok) res.status(404).json({ error: 'not found' });
+  });
+}
+
+/**
+ * GET /api/welcome/hero — stream the boat's hero photo for the PUBLIC welcome
+ * page. This is the ONE photo surface with NO auth guard, exactly like
+ * GET /api/welcome: the welcome page is the guest-facing surface, and the
+ * auth-gated /photos/:name route cannot serve it to a guest outside demo mode.
+ *
+ * The served file is the boat's `heroPhoto` (a repo-relative path like
+ * `photos/boat-hero.jpg`). We reduce it to a single basename (tolerating a
+ * leading `photos/`), reject traversal/null bytes, resolve it strictly inside
+ * <dataDir>/photos/, and stream it. 404 if no hero is configured or the file is
+ * missing. The hero is identity, not money — it carries no monetary data, so this
+ * route is safe for the redaction-golden invariant.
+ *
+ * Registered BEFORE the /api JSON-404 so it is matched (and never shadowed).
+ */
+export function registerWelcomeHeroRoute(app: Express, ctx: AppContext): void {
+  const { config, store } = ctx;
+  const photosRoot = resolve(join(config.dataDir, 'photos'));
+
+  app.get('/api/welcome/hero', async (_req, res) => {
+    const heroPhoto = store.current().boat.heroPhoto;
+    if (typeof heroPhoto !== 'string' || heroPhoto === '') {
+      res.status(404).json({ error: 'no hero photo' });
+      return;
+    }
+    // Reduce to a single segment (tolerate a `photos/` prefix), then re-check for
+    // any traversal/null bytes the basename couldn't have stripped.
+    const name = basename(heroPhoto);
+    if (name.includes('..') || name.includes('\0')) {
+      res.status(400).json({ error: 'bad hero photo' });
+      return;
+    }
+    const ext = extname(name).toLowerCase();
+    const contentType = PHOTO_CONTENT_TYPES[ext];
+    if (!contentType) {
+      res.status(404).json({ error: 'not found' });
+      return;
+    }
+    const abs = resolve(join(photosRoot, name));
+    if (!isInside(photosRoot, abs)) {
+      res.status(400).json({ error: 'bad hero photo' });
       return;
     }
     const ok = await streamFile(res, abs, contentType);

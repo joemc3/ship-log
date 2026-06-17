@@ -9,6 +9,7 @@ make: ''                 # builder, e.g. Catalina
 model: ''                # model, e.g. "25" (quote numeric-looking values)
 # year: 1985             # build year — a NUMBER, not a string; uncomment & set
 hailingPort: ''          # home port shown on the welcome page
+heroPhoto: ''            # repo-relative path to a hero image for the public Welcome page, e.g. photos/boat-hero.jpg
 
 # specs: free-form key/value pairs (string or number). Add whatever your boat
 # has — loa, beam, draft, engine, fuelCapacity, sailNo, vhfCallSign, mmsi, …

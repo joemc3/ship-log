@@ -20,8 +20,8 @@ export function registerAuthRoutes(app: Express, ctx: AppContext): void {
   // store.current().boat — so adding a field to boat.yaml can never leak it to
   // unauthenticated callers.
   app.get('/api/welcome', (_req, res) => {
-    const { name, make, model, year, hailingPort, welcome } = store.current().boat;
-    res.json({ name, make, model, year, hailingPort, welcome: welcome ?? {} });
+    const { name, make, model, year, hailingPort, heroPhoto, welcome } = store.current().boat;
+    res.json({ name, make, model, year, hailingPort, heroPhoto, welcome: welcome ?? {} });
   });
 
   app.get('/api/me', (req, res) => {
