@@ -61,7 +61,7 @@ describe('AssistantPage', () => {
     renderPage();
     await user.type(screen.getByPlaceholderText(/message|ask/i), 'are we good?');
     await user.click(screen.getByRole('button', { name: /send/i }));
-    await waitFor(() => expect(vi.mocked(api.assistantSend)).toHaveBeenCalledWith('are we good?', expect.any(Function)));
+    await waitFor(() => expect(vi.mocked(api.assistantSend)).toHaveBeenCalledWith('are we good?', expect.any(Function), undefined));
     expect(await screen.findByText('are we good?')).toBeInTheDocument();
     expect(await screen.findByText('All good.')).toBeInTheDocument();
   });
@@ -93,5 +93,18 @@ describe('AssistantPage', () => {
     renderPage();
     expect(screen.getByText(/First Mate/i)).toBeInTheDocument();
     expect(screen.queryByText(/Purser/i)).toBeNull();
+  });
+
+  it('attaches a photo and sends it with the message', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.assistantSend).mockImplementation(async (_m, onDelta) => { onDelta('I see it.'); });
+    renderPage();
+    const file = new File([new Uint8Array([1, 2, 3])], 'line.jpg', { type: 'image/jpeg' });
+    await user.upload(screen.getByLabelText(/attach|photo/i), file);
+    await user.type(screen.getByPlaceholderText(/message|ask/i), 'is this ok?');
+    await user.click(screen.getByRole('button', { name: /send/i }));
+    await waitFor(() =>
+      expect(vi.mocked(api.assistantSend)).toHaveBeenCalledWith('is this ok?', expect.any(Function), file),
+    );
   });
 });

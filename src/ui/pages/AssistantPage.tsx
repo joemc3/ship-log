@@ -16,6 +16,7 @@ export default function AssistantPage(): JSX.Element {
   const { assistantEnabled, assistantLabel, isOwner } = useSession();
   const [turns, setTurns] = useState<AssistantTurn[]>([]);
   const [draft, setDraft] = useState('');
+  const [photo, setPhoto] = useState<File | null>(null);
   const [streaming, setStreaming] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,22 +34,26 @@ export default function AssistantPage(): JSX.Element {
 
   const send = useCallback(async () => {
     const message = draft.trim();
-    if (!message || busy) return;
+    if ((!message && !photo) || busy) return;
     setBusy(true);
     setError(null);
     setDraft('');
-    setTurns((t) => [...t, { role: 'user', content: message, at: new Date().toISOString() }]);
+    setTurns((t) => [...t, { role: 'user', content: message, at: new Date().toISOString(), image: !!photo }]);
     let acc = '';
     try {
-      await api.assistantSend(message, (delta) => { acc += delta; setStreaming(acc); });
+      await api.assistantSend(message, (delta) => { acc += delta; setStreaming(acc); }, photo ?? undefined);
       setTurns((t) => [...t, { role: 'assistant', content: acc, at: new Date().toISOString() }]);
-    } catch {
-      setError(`Couldn't reach ${assistantLabel ?? 'the assistant'}. Try again in a moment.`);
+      setPhoto(null);
+    } catch (e) {
+      const msg = e instanceof Error && /unsupported|limit|413|415/i.test(e.message)
+        ? 'That photo could not be sent (unsupported type or too large).'
+        : `Couldn't reach ${assistantLabel ?? 'the assistant'}. Try again in a moment.`;
+      setError(msg);
     } finally {
       setStreaming('');
       setBusy(false);
     }
-  }, [draft, busy]);
+  }, [draft, photo, busy, assistantLabel]);
 
   const reset = useCallback(async () => {
     await api.assistantReset();
@@ -90,6 +95,17 @@ export default function AssistantPage(): JSX.Element {
       {error && <div role="alert" className="muted" style={{ marginTop: 8 }}>{error}</div>}
 
       <div className={styles.composer}>
+        <label className="btn btn-ghost" title="Attach a photo">
+          <Icon name="box" s={16} /> Attach
+          <input
+            type="file"
+            accept="image/*"
+            aria-label="Attach photo"
+            style={{ display: 'none' }}
+            onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+          />
+        </label>
+        {photo && <span className="muted tiny">{photo.name}</span>}
         <textarea
           rows={2}
           aria-label="Message"
@@ -98,7 +114,7 @@ export default function AssistantPage(): JSX.Element {
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
         />
-        <button className="btn btn-brass" disabled={busy || !draft.trim()} onClick={() => void send()}>
+        <button className="btn btn-brass" disabled={busy || (!draft.trim() && !photo)} onClick={() => void send()}>
           <Icon name="arrowRight" s={16} /> Send
         </button>
       </div>

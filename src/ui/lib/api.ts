@@ -219,13 +219,19 @@ export const api = {
    * fetch reader (EventSource is GET-only). Throws ApiError on a non-2xx or on an
    * SSE `error` event.
    */
-  assistantSend: async (message: string, onDelta: (text: string) => void): Promise<void> => {
-    const res = await fetch('/api/assistant/chat', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ message }),
-    });
+  assistantSend: async (message: string, onDelta: (text: string) => void, file?: File): Promise<void> => {
+    const init: RequestInit = { method: 'POST', credentials: 'include' };
+    if (file) {
+      const form = new FormData();
+      form.append('message', message);
+      form.append('photo', file);
+      init.body = form; // browser sets the multipart boundary; do NOT set Content-Type
+      init.headers = { Accept: 'text/event-stream' };
+    } else {
+      init.headers = { 'Content-Type': 'application/json', Accept: 'text/event-stream' };
+      init.body = JSON.stringify({ message });
+    }
+    const res = await fetch('/api/assistant/chat', init);
     if (!res.ok || !res.body) throw await parseError(res);
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
