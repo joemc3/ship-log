@@ -65,5 +65,8 @@ secrets:
     file: ./secrets/data_deploy_key
   # Optional: bearer token for the AI Purser agent endpoint.
   # Only needed if ASSISTANT_URL is set and the agent requires authentication.
+  # Even if you are not using the Purser, create an empty file so this mount
+  # succeeds: `touch secrets/assistant_api_key` (or remove this entry + the
+  # ASSISTANT_API_KEY_FILE env line above if you will never use the feature).
   assistant_api_key:
     file: ./secrets/assistant_api_key

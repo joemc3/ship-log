@@ -177,6 +177,13 @@ nav item, no route, and `/api/me` returns `assistant.enabled: false`. The app is
 fully functional without it. To run with no Purser at all, simply leave
 `ASSISTANT_URL` unset (the default).
 
+**VPS secret file required even when unused.** `docker-compose.vps.yml` always
+mounts `secrets/assistant_api_key` as a Docker secret (alongside the other three).
+If you are not enabling the Purser, create an empty placeholder so the secret
+mount succeeds: `touch secrets/assistant_api_key`. Alternatively, remove the
+`assistant_api_key` entry from both the `secrets:` block and the service's
+`ASSISTANT_API_KEY_FILE` env line in your copy of `docker-compose.vps.yml`.
+
 **Prerequisites.** You need a self-hosted agent that exposes an OpenAI-compatible
 HTTP endpoint (`POST /v1/chat/completions` with streaming). The agent can run on
 the same host, another container, or a nearby machine. Any OpenAI-compatible
