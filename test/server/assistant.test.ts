@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import request from 'supertest';
 import type { Express } from 'express';
+import sharp from 'sharp';
 import { loadConfig } from '../../src/server/config.js';
 import { UsersStore } from '../../src/server/users.js';
 import { createApp, type AssistantDeps } from '../../src/server/app.js';
@@ -160,5 +161,42 @@ describe('assistant — chat, history, reset', () => {
     const turns = log.list();
     expect(turns).toHaveLength(1);
     expect(turns[0]).toMatchObject({ role: 'user', content: 'will this fail?' });
+  });
+});
+
+async function tinyJpeg(): Promise<Buffer> {
+  return sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 10, g: 20, b: 30 } } }).jpeg().toBuffer();
+}
+
+describe('assistant — photo input (Phase 2)', () => {
+  it('forwards an attached photo as an image_url content part', async () => {
+    let seen: ChatParams | undefined;
+    const { app } = await buildApp({ withAssistant: true, deltas: ['looks frayed'], capture: (p) => { seen = p; } });
+    const agent = await login(app, 'owner1', 'ownerpass123');
+    const jpeg = await tinyJpeg();
+
+    const r = await agent
+      .post('/api/assistant/chat')
+      .field('message', 'is this line ok?')
+      .attach('photo', jpeg, 'line.jpg');
+
+    expect(r.status).toBe(200);
+    expect(seen).toBeDefined();
+    const parts = seen!.messages[0]!.content;
+    expect(Array.isArray(parts)).toBe(true);
+    const arr = parts as { type: string; image_url?: { url: string } }[];
+    expect(arr[0]!).toEqual({ type: 'text', text: 'is this line ok?' });
+    expect(arr[1]!.type).toBe('image_url');
+    expect(arr[1]!.image_url?.url).toMatch(/^data:image\/jpeg;base64,/);
+  });
+
+  it('rejects a non-image attachment with 415', async () => {
+    const { app } = await buildApp({ withAssistant: true });
+    const agent = await login(app, 'owner1', 'ownerpass123');
+    const r = await agent
+      .post('/api/assistant/chat')
+      .field('message', 'see this')
+      .attach('photo', Buffer.from('not an image'), { filename: 'x.txt', contentType: 'text/plain' });
+    expect(r.status).toBe(415);
   });
 });
