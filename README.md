@@ -220,6 +220,19 @@ dataset JSON. If a crew member asks it a cost question it may answer based on
 whatever the agent was trained on — the owner accepted this by enabling the
 feature. The normal app pages remain server-side redacted for crew and guests.
 
+**Visual inspection (Phase 2).** The chat composer lets you attach a photo alongside
+your message — for example, a shot of a possibly-frayed line or a corroded fitting.
+The server compresses the image (reusing the same pipeline as the photo log:
+longest edge ≤ 2048 px, JPEG) and forwards it to the agent as an `image_url` content
+part so the agent can *see* it and reason about what it shows. The agent can then
+act through its data-repo tools as usual — for example, opening a maintenance item.
+Chat photos are used only as vision input for that turn and are **not persisted** as
+files by the app (the agent may persist to the data repo if it logs maintenance).
+
+> **Vision model required.** The configured agent model must support image input.
+> A text-only model will silently ignore the attached photo. Verify your model's
+> vision capability before relying on photo-based queries.
+
 ## Development
 
 ```bash

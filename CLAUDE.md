@@ -454,6 +454,19 @@ same change.
     (send a turn, stream the reply), `DELETE /api/assistant/history` (clear the
     log). All three routes require authentication; guests get a 401.
 
+- **Photo / vision input (Phase 2).** `POST /api/assistant/chat` accepts either
+  `application/json` (`{ message }`) or `multipart/form-data` (`message` + optional
+  `photo` field). When a photo is present the server compresses it via `compressPhoto`
+  (longest edge ≤ 2048 px, JPEG — the same pipeline as `POST /api/photos`) and
+  converts it to a base64 `data:` URI forwarded to the agent as an `image_url`
+  content part alongside the text message. Error map: unsupported MIME type → 415,
+  file too large → 413. The chat photo is noted in the transcript as `image: true`
+  but is **NOT persisted as a file** by the app — the agent may persist to the data
+  repo through its own tools (e.g. opening a maintenance item), but the image itself
+  is ephemeral. Re-displaying chat photos in the history is a possible later addition
+  (the `image: true` flag marks the slot). **Vision requires a vision-capable agent
+  model** — a text-only model will ignore the image without error.
+
 - **Optionality:** `registerAssistantRoutes` is a no-op when `ctx.assistant` is
   absent. `index.ts` only builds `AssistantDeps` when `config.assistant` is set,
   which requires both a non-demo environment and `ASSISTANT_URL`. When unset, no
