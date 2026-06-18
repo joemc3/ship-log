@@ -123,6 +123,11 @@ export const boatSchema = z.object({
   hailingPort: z.string().optional(),
   heroPhoto: z.string().optional(),
   specs: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+  documents: z.object({
+    title: z.string().optional(),
+    hullId: z.string().optional(),
+    registrationNumber: z.string().optional(),
+  }).optional(),
   welcome: z.object({
     rules: z.array(z.string()).optional(),
     keepOff: z.array(z.string()).optional(),

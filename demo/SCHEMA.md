@@ -256,6 +256,7 @@ everything else is optional.
 | `hailingPort` | string                            | no  | |
 | `heroPhoto`   | string                            | no  | repo-relative path to a hero image shown on the public Welcome page, e.g. `photos/boat-hero.jpg` |
 | `specs`       | record<string, string \| number> | no  | free key/value specs (loa, beam, draft, engine, …) |
+| `documents`   | object                            | no  | owner-only: `title` (title number), `hullId` (HIN), `registrationNumber` (state reg) |
 | `welcome`     | object                            | no  | crew/guest welcome-page content |
 
 `welcome` holds: `rules` (string[]), `whatToExpect` (string), `whatToBring`
