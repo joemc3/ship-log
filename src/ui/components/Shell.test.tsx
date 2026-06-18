@@ -154,4 +154,15 @@ describe('Shell', () => {
     // The modal heading carries the boat name + "welcome page"; assert the H3.
     expect(await screen.findByRole('heading', { name: /share .*welcome page/i })).toBeInTheDocument();
   });
+
+  it('hides the Purser nav item when assistantEnabled is false', async () => {
+    renderShell(session({ role: 'crew', isCrew: true, isAuthed: true, assistantEnabled: false }));
+    await screen.findByTestId('page-content');
+    expect(screen.queryByRole('link', { name: /purser/i })).toBeNull();
+  });
+
+  it('shows the Purser nav item with its label when enabled', async () => {
+    renderShell(session({ role: 'crew', isCrew: true, isAuthed: true, assistantEnabled: true, assistantLabel: 'Ask the Purser' }));
+    expect(await screen.findByRole('link', { name: /ask the purser/i })).toBeInTheDocument();
+  });
 });

@@ -25,7 +25,7 @@ interface NavItem {
   label: string;
   icon: IconName;
   /** Visibility predicate against the session role flags. */
-  show?: (s: { isOwner: boolean; isAuthed: boolean }) => boolean;
+  show?: (s: { isOwner: boolean; isAuthed: boolean; assistantEnabled: boolean }) => boolean;
   badge?: boolean;
 }
 interface NavGroup {
@@ -44,6 +44,7 @@ const NAV: NavGroup[] = [
       { to: '/trips', label: 'Trip logs', icon: 'log', show: (s) => s.isAuthed },
       { to: '/maintenance', label: 'Maintenance', icon: 'wrench', show: (s) => s.isAuthed, badge: true },
       { to: '/inventory', label: 'Inventory', icon: 'box', show: (s) => s.isAuthed },
+      { to: '/assistant', label: 'Ask the Purser', icon: 'crew', show: (s) => s.isAuthed && s.assistantEnabled },
       { to: '/costs', label: 'Costs', icon: 'coins', show: (s) => s.isOwner },
     ],
   },
@@ -70,6 +71,7 @@ const CRUMBS: Record<string, string> = {
   admin: 'Admin',
   account: 'Account',
   login: 'Sign in',
+  assistant: 'Purser',
 };
 
 /** Search-hit collection -> its page route + list icon. */
@@ -84,7 +86,7 @@ const HIT_ROUTE: Record<SearchHit['collection'], { path: string; icon: IconName;
 
 export function Shell({ children }: { children: ReactNode }): JSX.Element {
   const session = useSession();
-  const { isOwner, isAuthed, demo, username, logout } = session;
+  const { isOwner, isAuthed, demo, username, logout, assistantEnabled, assistantLabel } = session;
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -130,12 +132,12 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
   // Close the mobile drawer on navigation.
   useEffect(() => { setNavOpen(false); }, [location.pathname]);
 
-  const flags = { isOwner, isAuthed };
+  const flags = { isOwner, isAuthed, assistantEnabled: assistantEnabled ?? false };
   const groups = useMemo(
     () => NAV
       .map((g) => ({ ...g, items: g.items.filter((it) => (it.show ? it.show(flags) : true)) }))
       .filter((g) => g.items.length > 0),
-    [isOwner, isAuthed],
+    [isOwner, isAuthed, assistantEnabled],
   );
 
   const seg = location.pathname.split('/')[1] ?? '';
@@ -169,7 +171,7 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
                   className={`nav-item${isActive(it.to) ? ' active' : ''}`}
                 >
                   <span className="nav-ico"><Icon name={it.icon} s={19} /></span>
-                  {it.label}
+                  {it.to === '/assistant' ? (assistantLabel ?? 'Ask the Purser') : it.label}
                   {it.badge && attention > 0 && <span className="nav-badge">{attention}</span>}
                 </Link>
               ))}

@@ -5,6 +5,8 @@ import { prepareStore } from './boot.js';
 import { UsersStore } from './users.js';
 import { createApp } from './app.js';
 import { SyncScheduler } from './sync.js';
+import { createAssistantClient } from './assistant.js';
+import { ChatLog } from './chatlog.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const demoDir = resolve(repoRoot, 'demo');
@@ -36,7 +38,17 @@ async function main(): Promise<void> {
     console.log(`Sync scheduler running (pull every ${Math.round(config.pullIntervalMs / 1000)}s).`);
   }
 
-  const server = createApp({ config, store, users }).listen(config.port, () => {
+  const assistant = config.assistant
+    ? {
+        client: createAssistantClient(config.assistant),
+        log: await ChatLog.load(config.assistant.chatLogPath),
+        sessionId: config.assistant.sessionId,
+        label: config.assistant.label,
+      }
+    : undefined;
+  if (assistant) console.log(`Assistant ("${assistant.label}") enabled → ${config.assistant!.url}`);
+
+  const server = createApp({ config, store, users, assistant }).listen(config.port, () => {
     const mode = config.demo ? ' (DEMO MODE)' : readOnly ? ' (READ-ONLY — sync unavailable)' : '';
     console.log(`Ship's Log server listening on :${config.port}${mode}`);
   });

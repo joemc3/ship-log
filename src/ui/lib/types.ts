@@ -64,6 +64,16 @@ export interface Me {
   username: string | null;
   demo: boolean;
   ownerConfigured: boolean;
+  assistant?: { enabled: boolean; label: string };
+}
+
+/** One turn in the shared assistant thread (GET /api/assistant/history). */
+export interface AssistantTurn {
+  role: 'user' | 'assistant';
+  name?: string;
+  content: string;
+  at: string;
+  image?: boolean;
 }
 
 /** GET /api/welcome — the only block a guest may see. */

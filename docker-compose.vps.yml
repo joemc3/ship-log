@@ -39,11 +39,14 @@ services:
       # The git deploy key (read/write, scoped to the single data repo) is mounted
       # as a secret; point the git layer at it. Use an SSH DATA_REPO_URL with this.
       DATA_SSH_KEY_PATH: /run/secrets/data_deploy_key
+      # Optional: agent API key as a Docker secret (resolved by config.ts).
+      ASSISTANT_API_KEY_FILE: /run/secrets/assistant_api_key
 
     secrets:
       - session_secret
       - owner_password
       - data_deploy_key
+      - assistant_api_key
 
 networks:
   # Provided by the Pangolin/Gerbil tunnel stack; not created by this compose.
@@ -60,3 +63,10 @@ secrets:
   # SSH deploy key for the private <boat>-log data repo (read/write, repo-scoped).
   data_deploy_key:
     file: ./secrets/data_deploy_key
+  # Optional: bearer token for the AI Purser agent endpoint.
+  # Only needed if ASSISTANT_URL is set and the agent requires authentication.
+  # Even if you are not using the Purser, create an empty file so this mount
+  # succeeds: `touch secrets/assistant_api_key` (or remove this entry + the
+  # ASSISTANT_API_KEY_FILE env line above if you will never use the feature).
+  assistant_api_key:
+    file: ./secrets/assistant_api_key

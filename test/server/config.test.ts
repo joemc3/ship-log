@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { loadConfig } from '../../src/server/config.js';
 
 const DEMO = '/tmp/demo-placeholder';
@@ -170,5 +170,48 @@ describe('loadConfig', () => {
         loadConfig({ DATA_DIR: '/d', SESSION_SECRET_FILE: '/no/such/secret/file' }, DEMO),
       ).toThrow(/SESSION_SECRET_FILE/);
     });
+  });
+});
+
+describe('config — assistant', () => {
+  const base = { DATA_DIR: '/srv/data', SESSION_SECRET: 's', USERS_PATH: '/srv/var/users.json' };
+
+  it('is undefined when ASSISTANT_URL is unset', () => {
+    expect(loadConfig({ ...base }, DEMO).assistant).toBeUndefined();
+  });
+
+  it('is populated with defaults when ASSISTANT_URL is set', () => {
+    const c = loadConfig({ ...base, ASSISTANT_URL: 'http://host.docker.internal:8642' }, DEMO);
+    expect(c.assistant).toEqual({
+      url: 'http://host.docker.internal:8642',
+      apiKey: undefined,
+      model: 'default',
+      label: 'Ask the Purser',
+      sessionId: 'shiplog',
+      chatLogPath: join(dirname('/srv/var/users.json'), 'assistant-chatlog.json'),
+    });
+  });
+
+  it('honors overrides', () => {
+    const c = loadConfig(
+      { ...base, ASSISTANT_URL: 'http://a', ASSISTANT_MODEL: 'm', ASSISTANT_LABEL: 'First Mate', ASSISTANT_SESSION_ID: 'boat' },
+      DEMO,
+    );
+    expect(c.assistant?.model).toBe('m');
+    expect(c.assistant?.label).toBe('First Mate');
+    expect(c.assistant?.sessionId).toBe('boat');
+  });
+
+  it('resolves ASSISTANT_API_KEY_FILE indirection', () => {
+    const f = join(mkdtempSync(join(tmpdir(), 'shiplog-secret-')), 'key');
+    writeFileSync(f, 'sekret\n');
+    const c = loadConfig({ ...base, ASSISTANT_URL: 'http://a', ASSISTANT_API_KEY_FILE: f }, DEMO);
+    expect(c.assistant?.apiKey).toBe('sekret');
+  });
+
+  it('is disabled in demo even if ASSISTANT_URL is set', () => {
+    const c = loadConfig({ ASSISTANT_URL: 'http://a' }, DEMO); // no DATA_DIR/REPO ⇒ demo
+    expect(c.demo).toBe(true);
+    expect(c.assistant).toBeUndefined();
   });
 });

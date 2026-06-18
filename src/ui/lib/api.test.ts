@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { api, ApiError } from './api.js';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -259,5 +259,44 @@ describe('api client — writes', () => {
     const err = await api.uploadPhoto(file).catch((e) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect(err.status).toBe(413);
+  });
+});
+
+describe('api — assistant', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('assistantHistory GETs the thread', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ turns: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { api } = await import('./api.js');
+    await expect(api.assistantHistory()).resolves.toEqual({ turns: [] });
+    expect((fetchMock.mock.calls[0] as unknown as [string, ...unknown[]])[0]).toBe('/api/assistant/history');
+  });
+
+  it('assistantSend streams deltas via onDelta', async () => {
+    const enc = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(enc.encode('event: delta\ndata: "Hel"\n\n'));
+        c.enqueue(enc.encode('event: delta\ndata: "lo"\n\n'));
+        c.enqueue(enc.encode('event: done\ndata: {"ok":true}\n\n'));
+        c.close();
+      },
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { status: 200 })));
+    const { api } = await import('./api.js');
+    const got: string[] = [];
+    await api.assistantSend('hi', (d) => got.push(d));
+    expect(got.join('')).toBe('Hello');
+  });
+
+  it('assistantSend throws on an SSE error event', async () => {
+    const enc = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(c) { c.enqueue(enc.encode('event: error\ndata: {"error":"nope"}\n\n')); c.close(); },
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { status: 200 })));
+    const { api } = await import('./api.js');
+    await expect(api.assistantSend('hi', () => {})).rejects.toThrow(/nope/);
   });
 });

@@ -29,6 +29,8 @@ function Probe(): JSX.Element {
       <span data-testid="demo">{String(s.demo)}</span>
       <span data-testid="ownerConfigured">{String(s.ownerConfigured)}</span>
       <span data-testid="username">{s.username ?? ''}</span>
+      <span data-testid="assistantEnabled">{String(s.assistantEnabled)}</span>
+      <span data-testid="assistantLabel">{s.assistantLabel}</span>
       <button onClick={() => void s.login('cap', 'pw')}>login</button>
       <button onClick={() => void s.logout()}>logout</button>
     </div>
@@ -117,5 +119,22 @@ describe('SessionProvider', () => {
     });
     await waitFor(() => expect(screen.getByTestId('role')).toHaveTextContent('guest'));
     expect(mockedLogout).toHaveBeenCalled();
+  });
+
+  it('exposes assistantEnabled + assistantLabel from /api/me', async () => {
+    mockedMe.mockResolvedValue({
+      role: 'owner', username: 'cap', demo: false, ownerConfigured: true,
+      assistant: { enabled: true, label: 'Ask the Purser' },
+    });
+    renderSession();
+    await waitFor(() => expect(screen.getByTestId('assistantEnabled')).toHaveTextContent('true'));
+    expect(screen.getByTestId('assistantLabel')).toHaveTextContent('Ask the Purser');
+  });
+
+  it('defaults assistant flags off when /api/me omits them', async () => {
+    mockedMe.mockResolvedValue(GUEST);
+    renderSession();
+    await waitFor(() => expect(screen.getByTestId('assistantEnabled')).toHaveTextContent('false'));
+    expect(screen.getByTestId('assistantLabel')).toHaveTextContent('Ask the Purser');
   });
 });

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { resolve, relative, isAbsolute } from 'node:path';
+import { resolve, relative, isAbsolute, join, dirname } from 'node:path';
 import { z } from 'zod';
 
 export interface Config {
@@ -17,6 +17,14 @@ export interface Config {
   sshKeyPath?: string;   // SSH deploy-key path → GIT_SSH_COMMAND (DATA_SSH_KEY_PATH)
   repoToken?: string;    // fine-grained PAT for an https remote (DATA_REPO_TOKEN)
   pullIntervalMs: number;// sync scheduler cadence (PULL_INTERVAL seconds); default 5 min
+  assistant?: {
+    url: string;
+    apiKey?: string;
+    model: string;
+    label: string;
+    sessionId: string;
+    chatLogPath: string;
+  };
 }
 
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -36,6 +44,11 @@ const envSchema = z.object({
   DATA_SSH_KEY_PATH: z.string().optional(),
   DATA_REPO_TOKEN: z.string().optional(),
   PULL_INTERVAL: z.coerce.number().positive().optional(), // seconds between sync pulls
+  ASSISTANT_URL: z.string().optional(),
+  ASSISTANT_API_KEY: z.string().optional(),
+  ASSISTANT_MODEL: z.string().optional(),
+  ASSISTANT_LABEL: z.string().optional(),
+  ASSISTANT_SESSION_ID: z.string().optional(),
 });
 
 /** Default working-clone path used when DATA_REPO_URL is set but DATA_DIR is not. */
@@ -44,7 +57,7 @@ export const DEFAULT_CLONE_DIR = './var/data';
 /** Secret-bearing vars that also accept a `<NAME>_FILE` Docker-secret indirection
  *  (the file's contents become the value). The inline var always wins when both
  *  are present. The trailing newline a secret file usually carries is trimmed. */
-const SECRET_FILE_VARS = ['SESSION_SECRET', 'OWNER_PASSWORD', 'DATA_REPO_TOKEN'] as const;
+const SECRET_FILE_VARS = ['SESSION_SECRET', 'OWNER_PASSWORD', 'DATA_REPO_TOKEN', 'ASSISTANT_API_KEY'] as const;
 
 /**
  * Resolve `<NAME>_FILE` Docker-secret indirection into `<NAME>` on a shallow copy
@@ -119,6 +132,16 @@ export function loadConfig(
         `store must stay out of the data git repo. Point USERS_PATH at a separate volume.`,
     );
   }
+  const assistant = !demo && e.ASSISTANT_URL
+    ? {
+        url: e.ASSISTANT_URL,
+        apiKey: e.ASSISTANT_API_KEY,
+        model: e.ASSISTANT_MODEL ?? 'default',
+        label: e.ASSISTANT_LABEL ?? 'Ask the Purser',
+        sessionId: e.ASSISTANT_SESSION_ID ?? 'shiplog',
+        chatLogPath: join(dirname(usersPath), 'assistant-chatlog.json'),
+      }
+    : undefined;
   return {
     dataDir,
     demo,
@@ -140,5 +163,6 @@ export function loadConfig(
     repoToken: e.DATA_REPO_TOKEN,
     // PULL_INTERVAL is in SECONDS for operator friendliness; stored as ms.
     pullIntervalMs: e.PULL_INTERVAL ? e.PULL_INTERVAL * 1000 : DEFAULT_PULL_INTERVAL_MS,
+    assistant,
   };
 }
