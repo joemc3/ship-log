@@ -28,6 +28,7 @@ import VendorsPage from './pages/VendorsPage.js';
 import SearchPage from './pages/SearchPage.js';
 import AdminPage from './pages/AdminPage.js';
 import AccountPage from './pages/AccountPage.js';
+import AssistantPage from './pages/AssistantPage.js';
 
 function Loading(): JSX.Element {
   return (
@@ -95,6 +96,7 @@ export function AppRoutes(): JSX.Element {
         <Route path="/vendors/:id" element={<RequireAuth><VendorsPage /></RequireAuth>} />
         <Route path="/search" element={<RequireAuth><SearchPage /></RequireAuth>} />
         <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
+        <Route path="/assistant" element={<RequireAuth><AssistantPage /></RequireAuth>} />
 
         {/* Owner-only. */}
         <Route path="/costs" element={<RequireOwner><CostsPage /></RequireOwner>} />
