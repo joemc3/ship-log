@@ -49,11 +49,6 @@ const FULL: Welcome = {
   year: 1985,
   hailingPort: 'Gull Point',
   welcome: {
-    keepOff: [
-      'No bananas',
-      'Heels',
-      'No glass',
-    ],
     rules: [
       'Life jackets on deck under way.',
       'One hand for you, one for the boat.',
@@ -103,14 +98,6 @@ describe('WelcomePage', () => {
     renderWelcome(session({}));
     for (const rule of FULL.welcome.rules!) {
       expect(await screen.findByText(rule)).toBeInTheDocument();
-    }
-  });
-
-  it('renders the keepOff items in a dedicated leave-ashore section', async () => {
-    renderWelcome(session({}));
-    expect(await screen.findByText(/leave ashore/i)).toBeInTheDocument();
-    for (const item of FULL.welcome.keepOff!) {
-      expect(screen.getByText(item)).toBeInTheDocument();
     }
   });
 
