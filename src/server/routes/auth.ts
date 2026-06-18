@@ -12,8 +12,14 @@ function syncSummary(store: ShipStore): { status: string; enabled: boolean; last
   return { status: s.status, enabled: store.syncEnabled(), lastPullAt: s.lastPullAt, lastPushAt: s.lastPushAt };
 }
 
+/** Client-safe assistant summary for `/api/me`: whether the feature is on + the
+ *  UI label. No URL/secret ever crosses the wire. */
+function assistantSummary(assistant: AppContext['assistant']): { enabled: boolean; label: string } {
+  return { enabled: !!assistant, label: assistant?.label ?? 'Ask the Purser' };
+}
+
 export function registerAuthRoutes(app: Express, ctx: AppContext): void {
-  const { config, store, users, now } = ctx;
+  const { config, store, users, now, assistant } = ctx;
 
   // Public (guest-visible) endpoint: boat identity + welcome block ONLY, no
   // collections. Explicitly curate the returned fields — do NOT spread
@@ -33,7 +39,7 @@ export function registerAuthRoutes(app: Express, ctx: AppContext): void {
       username: req.viewer.username,
       demo: config.demo,
       ownerConfigured: !users.isEmpty(),
-      ...(showSync ? { sync: syncSummary(store) } : {}),
+      ...(showSync ? { sync: syncSummary(store), assistant: assistantSummary(assistant) } : {}),
     });
   });
 

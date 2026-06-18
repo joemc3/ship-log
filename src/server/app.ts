@@ -9,18 +9,29 @@ import cookieParser from 'cookie-parser';
 import type { Config } from './config.js';
 import type { UsersStore } from './users.js';
 import type { ShipStore } from './store.js';
+import type { AssistantClient } from './assistant.js';
+import type { ChatLog } from './chatlog.js';
 import { attachRole } from './middleware.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerDataRoutes } from './routes/data.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { registerWriteRoutes } from './routes/writes.js';
 import { registerPhotoRoute, registerManualRoute, registerWelcomeHeroRoute, registerSpaStatic } from './static.js';
+import { registerAssistantRoutes } from './routes/assistant.js';
+
+export interface AssistantDeps {
+  client: AssistantClient;
+  log: ChatLog;
+  sessionId: string;
+  label: string;
+}
 
 export interface AppContext {
   config: Config;
   store: ShipStore;
   users: UsersStore;
   now: () => Date;
+  assistant?: AssistantDeps;
 }
 
 /** ~1 year, the value HSTS preload lists expect. */
@@ -101,6 +112,7 @@ export function createApp(deps: Omit<AppContext, 'now'> & { now?: () => Date }):
   registerPhotoRoute(app, ctx);
   registerManualRoute(app, ctx);
   registerWelcomeHeroRoute(app, ctx);
+  registerAssistantRoutes(app, ctx);
 
   // Any unmatched /api, /photos, or /files path -> JSON 404. Registered BEFORE
   // the SPA so an unknown API/asset route is always a JSON 404, never index.html.
