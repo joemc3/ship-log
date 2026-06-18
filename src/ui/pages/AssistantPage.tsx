@@ -56,8 +56,12 @@ export default function AssistantPage(): JSX.Element {
   }, [draft, photo, busy, assistantLabel]);
 
   const reset = useCallback(async () => {
-    await api.assistantReset();
-    setTurns([]);
+    try {
+      await api.assistantReset();
+      setTurns([]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not reset the thread.');
+    }
   }, []);
 
   if (!assistantEnabled) {
@@ -109,7 +113,7 @@ export default function AssistantPage(): JSX.Element {
         <textarea
           rows={2}
           aria-label="Message"
-          placeholder="Message the Purser…"
+          placeholder={`Message ${assistantLabel ?? 'the assistant'}…`}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}

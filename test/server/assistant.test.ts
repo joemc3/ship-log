@@ -199,4 +199,16 @@ describe('assistant — photo input (Phase 2)', () => {
       .attach('photo', Buffer.from('not an image'), { filename: 'x.txt', contentType: 'text/plain' });
     expect(r.status).toBe(415);
   });
+
+  it('returns 413 (not 500) when the attached photo exceeds the multer size limit', async () => {
+    const { app } = await buildApp({ withAssistant: true });
+    const agent = await login(app, 'owner1', 'ownerpass123');
+    // Allocate a buffer just over 30 MB to trigger multer's LIMIT_FILE_SIZE error.
+    const oversized = Buffer.alloc(31 * 1024 * 1024);
+    const r = await agent
+      .post('/api/assistant/chat')
+      .field('message', 'big photo')
+      .attach('photo', oversized, { filename: 'huge.jpg', contentType: 'image/jpeg' });
+    expect(r.status).toBe(413);
+  });
 });

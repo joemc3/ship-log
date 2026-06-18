@@ -7,7 +7,7 @@
  * come from `req.viewer`, never the client. The transcript is the shared communal
  * thread (display); the agent keeps its own long-term memory.
  */
-import type { Express, Request } from 'express';
+import type { Express, Request, RequestHandler } from 'express';
 import multer from 'multer';
 import type { AppContext } from '../app.js';
 import { requireAuth, requireOwner, denyInDemo } from '../middleware.js';
@@ -28,13 +28,28 @@ export function registerAssistantRoutes(app: Express, ctx: AppContext): void {
   const { assistant, config } = ctx;
   if (!assistant) return; // feature OFF — register nothing
 
-  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 26 * 1024 * 1024 } });
+  // Match writes.ts: 30 MB hard cap so oversized files hit multer (→ 413) before
+  // compressPhoto's own limit check. The acceptPhoto wrapper maps MulterError to
+  // the correct client status instead of letting it propagate as a 500.
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
+
+  const acceptPhoto: RequestHandler = (req, res, next) =>
+    upload.single('photo')(req, res, (err: unknown) => {
+      if (!err) return next();
+      if (err instanceof multer.MulterError) {
+        const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+        const message = err.code === 'LIMIT_FILE_SIZE' ? 'image exceeds the upload size limit' : `upload error: ${err.message}`;
+        res.status(status).json({ error: message });
+        return;
+      }
+      return next(err);
+    });
 
   app.get('/api/assistant/history', requireAuth, (_req, res) => {
     res.json({ turns: assistant.log.list() });
   });
 
-  app.post('/api/assistant/chat', requireAuth, denyInDemo(config), upload.single('photo'), async (req, res) => {
+  app.post('/api/assistant/chat', requireAuth, denyInDemo(config), acceptPhoto, async (req, res) => {
     const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
     if (!message && !req.file) { res.status(400).json({ error: 'message required' }); return; }
 
