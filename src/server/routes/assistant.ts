@@ -33,9 +33,15 @@ export function registerAssistantRoutes(app: Express, ctx: AppContext): void {
     const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
     if (!message) { res.status(400).json({ error: 'message required' }); return; }
 
-    await assistant.log.append({
-      role: 'user', name: req.viewer.username ?? undefined, content: message, at: ctx.now().toISOString(),
-    });
+    try {
+      await assistant.log.append({
+        role: 'user', name: req.viewer.username ?? undefined, content: message, at: ctx.now().toISOString(),
+      });
+    } catch (err) {
+      console.error('[assistant] failed to record user turn:', err);
+      res.status(500).json({ error: 'internal error' });
+      return;
+    }
 
     res.status(200);
     res.setHeader('Content-Type', 'text/event-stream');
@@ -57,7 +63,8 @@ export function registerAssistantRoutes(app: Express, ctx: AppContext): void {
       }
       await assistant.log.append({ role: 'assistant', content: full, at: ctx.now().toISOString() });
       sse(res, 'done', { ok: true });
-    } catch {
+    } catch (err) {
+      console.error('[assistant] chat stream failed:', err);
       // Generic, sanitized reason only (never the agent URL/secret).
       sse(res, 'error', { error: "couldn't reach the assistant" });
     } finally {

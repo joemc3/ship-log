@@ -22,7 +22,17 @@ function fakeClient(deltas: string[], capture?: (p: ChatParams) => void): Assist
   };
 }
 
-interface BuildOpts { withAssistant?: boolean; deltas?: string[]; capture?: (p: ChatParams) => void; }
+/** A fake agent client whose chatStream always throws. */
+function throwingClient(): AssistantClient {
+  return {
+    // eslint-disable-next-line require-yield
+    async *chatStream(_params: ChatParams) {
+      throw new Error('simulated stream failure');
+    },
+  };
+}
+
+interface BuildOpts { withAssistant?: boolean; deltas?: string[]; capture?: (p: ChatParams) => void; throws?: boolean; }
 
 async function buildApp(opts: BuildOpts = {}): Promise<{ app: Express; log: ChatLog }> {
   const usersPath = join(mkdtempSync(join(tmpdir(), 'shiplog-users-')), 'users.json');
@@ -36,8 +46,9 @@ async function buildApp(opts: BuildOpts = {}): Promise<{ app: Express; log: Chat
   await users.add('owner1', 'ownerpass123', 'owner');
   await users.add('crew1', 'crewpass123', 'crew');
   const log = await ChatLog.load(join(mkdtempSync(join(tmpdir(), 'shiplog-cl-')), 'log.json'));
+  const client = opts.throws ? throwingClient() : fakeClient(opts.deltas ?? ['hi'], opts.capture);
   const assistant: AssistantDeps | undefined = opts.withAssistant
-    ? { client: fakeClient(opts.deltas ?? ['hi'], opts.capture), log, sessionId: 'shiplog', label: 'Ask the Purser' }
+    ? { client, log, sessionId: 'shiplog', label: 'Ask the Purser' }
     : undefined;
   const app = createApp({ config, store, users, now: FIXED_NOW, assistant });
   return { app, log };
@@ -132,5 +143,22 @@ describe('assistant — chat, history, reset', () => {
 
     expect((await owner.delete('/api/assistant/history')).status).toBe(204);
     expect(log.list()).toEqual([]);
+  });
+
+  it('emits event: error with generic message when chatStream throws, and records only the user turn', async () => {
+    const { app, log } = await buildApp({ withAssistant: true, throws: true });
+    const agent = await login(app, 'owner1', 'ownerpass123');
+
+    const r = await agent.post('/api/assistant/chat').send({ message: 'will this fail?' });
+    expect(r.status).toBe(200);
+    expect(r.headers['content-type']).toMatch(/text\/event-stream/);
+    expect(r.text).toContain('event: error');
+    expect(r.text).toContain(JSON.stringify({ error: "couldn't reach the assistant" }));
+    expect(r.text).not.toContain('event: done');
+
+    // User turn was recorded; assistant turn was NOT (stream never completed).
+    const turns = log.list();
+    expect(turns).toHaveLength(1);
+    expect(turns[0]).toMatchObject({ role: 'user', content: 'will this fail?' });
   });
 });
