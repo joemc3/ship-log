@@ -256,6 +256,44 @@ export default function WelcomePage(): JSX.Element {
           </div>
         )}
 
+        {/* ---------- LEAVE ASHORE ---------- */}
+        {block.keepOff && block.keepOff.length > 0 && (
+          <div style={{ marginTop: 32 }}>
+            <SectionHead icon="close" title="Leave ashore" />
+            <div
+              className="card card-pad"
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '8px 16px',
+                background: 'var(--paper-2)',
+                border: '1px solid var(--line)',
+              }}
+            >
+              {block.keepOff.map((item, i) => (
+                <span
+                  key={item}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 14px',
+                    borderRadius: 20,
+                    background: 'var(--ink-50)',
+                    color: 'var(--ink-700)',
+                    fontSize: 14.5,
+                    fontWeight: 500,
+                    border: '1px solid rgba(0,0,0,0.06)',
+                  }}
+                >
+                  <span style={{ color: 'var(--rust)' }}>✕</span>
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ---------- BRING + SAFETY ---------- */}
         {(((block.whatToBring?.length ?? 0) > 0) || block.safety) && (
           <div className="grid welcome-split" style={{ gridTemplateColumns: '1fr 1fr', marginTop: 32 }}>

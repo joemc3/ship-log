@@ -76,6 +76,7 @@ export interface Welcome {
   heroPhoto?: string;
   welcome: {
     rules?: string[];
+    keepOff?: string[];
     whatToExpect?: string;
     whatToBring?: string[];
     safety?: string;

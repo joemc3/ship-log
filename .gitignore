@@ -4,3 +4,6 @@ dist/
 *.local
 .env
 var/
+secrets/
+deploy_key
+deploy_key.pub

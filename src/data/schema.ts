@@ -125,6 +125,7 @@ export const boatSchema = z.object({
   specs: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
   welcome: z.object({
     rules: z.array(z.string()).optional(),
+    keepOff: z.array(z.string()).optional(),
     whatToExpect: z.string().optional(),
     whatToBring: z.array(z.string()).optional(),
     safety: z.string().optional(),

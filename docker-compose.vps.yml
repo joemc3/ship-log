@@ -29,7 +29,7 @@ services:
         # actual subnet before deploy: confirm the network's subnet, pick a high
         # static address outside the DHCP range, and update both this value and
         # the Pangolin/Gerbil target so the tunnel routes to the right container.
-        ipv4_address: 172.18.0.22
+        ipv4_address: 172.18.0.7
 
     environment:
       # Override the env-interpolated values from the base with the secret-file
