@@ -29,6 +29,9 @@ operator's own agent; this repo stays generic so any fork can enable its own.
   request. The browser never supplies identity.
 - Be a model-agnostic, open-source-friendly integration: point it at **any**
   OpenAI-compatible agent; light up extra per-person features when it's a Hermes.
+- Support a **visual-inspection workflow**: attach a photo in chat (e.g. a possibly
+  frayed line) and ask the agent to assess it; the agent can then act on it through
+  its data-repo tools as usual (e.g. open a maintenance item).
 - Be **completely optional** with a clean "don't enable it" path.
 - Ship complete documentation (README + CLAUDE.md) as part of the change.
 
@@ -41,7 +44,8 @@ operator's own agent; this repo stays generic so any fork can enable its own.
 - No changes to the agent itself (no Hermes fork, no `gateway/platforms/web.py`).
 - No per-role guardrails *inside* the assistant (crew is trusted family/crew). See
   "Cost-redaction exception."
-- No multi-agent routing, no voice, no file-upload-to-agent in v1 (Phase 2 candidates).
+- No multi-agent routing and no voice input (not in committed scope). **Photo/file
+  input to the agent is in scope** — it is Phase 2, and Phase 2 is committed.
 
 ## Decisions (from brainstorming)
 
@@ -152,7 +156,8 @@ SPA show/hide the nav item and render the configurable label. In demo, `enabled`
   owner+crew; guests never see it; hidden when `!assistant.enabled`). Message list
   rendered from the shared transcript, an input box, and **SSE streaming** render
   (tokens appear live). Reuses the existing `Markdown.tsx` for replies; a lightweight
-  "working…" indicator while the stream is open. Co-located
+  "working…" indicator while the stream is open; and an **owner-only reset control**
+  that clears the communal thread (`DELETE /api/assistant/history`). Co-located
   `AssistantPage.module.css`; shared `app.css` untouched.
 - **Nav (`Shell.tsx`):** add the assistant item, labelled from `assistant.label`
   (default "Ask the Purser"), shown only when `assistant.enabled`.
@@ -239,7 +244,12 @@ Per the repo's doc-upkeep rule, the change is **not done** until:
     when `ASSISTANT_URL` set.
 - **UI (`ui` project, `AssistantPage.test.tsx`, jsdom + Testing Library):** renders
   history; sends a message; streams a mocked reply; hidden for guest; hidden in demo;
-  Markdown renders; nav label reflects `assistant.label`.
+  Markdown renders; nav label reflects `assistant.label`; the owner-only reset control
+  clears the thread (and is absent for crew).
+- **Phase 2 — media (server + UI):** attaching a photo compresses it (reused `sharp`
+  pipeline) and forwards it to the (fake) agent as an `image_url` content part; the
+  composer shows a thumbnail preview; oversized / wrong-type files map to the friendly
+  413/415 copy the photo route already returns.
 
 ## Effort & phasing
 
@@ -248,19 +258,33 @@ to the agent**. Comparable in size to "one existing SPA page (e.g.
 `MaintenancePage`) + one server route group + a small store + the sync-style
 `/api/me` surface."
 
-Both phases are **production-quality, fully tested, no shortcuts**. The split is about
-sequencing complete increments, not about shipping something provisional first —
-Phase 1 is a finished, releasable feature on its own; Phase 2 adds further capability.
+The feature ships in **two equally-important, equally-committed phases**. The split is
+purely about sequencing two sizable, self-contained increments — **not** about
+priority. The feature is **not complete until both phases ship**, and **both are
+fully tested and fully documented, with no shortcuts in either.** Both phases are
+production code; neither is a trial run for the other.
 
-- **Phase 1 (initial release):** `assistant.ts` client, `routes/assistant.ts` (SSE),
-  `chatlog.ts` store, `config.ts` additions, `/api/me` surface, `AssistantPage` + nav
-  + router, compose `extra_hosts`, full tests, README + CLAUDE.md updates. → streaming
-  chat, communal thread, per-person memory, owner + crew, demo-off, off-by-default.
-  Roughly **5 new files + a handful of wiring points**; a focused ~1–2 day TDD build
-  for someone fluent in this codebase.
-- **Phase 2 (follow-on enhancements):** live tool-progress cards, history-reset UI,
-  per-user display names (optional `displayName` on the user record), file/photo to
-  the agent, mobile refinements.
+- **Phase 1 — Conversation.** The streaming text chat: `assistant.ts` client,
+  `routes/assistant.ts` (SSE), `chatlog.ts` store, `config.ts` additions, `/api/me`
+  surface, `AssistantPage` + nav + router, off-by-default optionality, **chat reset**
+  (the `DELETE /api/assistant/history` route **and** its owner-only UI control),
+  compose `extra_hosts`, README + CLAUDE.md updates, full server + UI tests. →
+  communal thread, per-person memory, owner + crew, demo-off.
+- **Phase 2 — Photos & files to the agent.** The visual-inspection workflow: attach a
+  photo (or file) in the chat composer; the server compresses it (reusing the existing
+  `photos.ts` `sharp` pipeline) and forwards it to the agent as OpenAI **image content
+  parts** so the agent can *see* it ("is this frayed line okay?"); the agent can then
+  act on it through its own data-repo tools (e.g. open a maintenance item) exactly as
+  it does today. UI: an attach control with a thumbnail preview in the composer, and
+  the friendly 413/415 error posture the photo route already uses. Depends on the
+  configured agent's model supporting image input (see verify list). Full server + UI
+  tests; README + CLAUDE.md updates.
+
+Genuinely-optional extras, explicitly **not** part of the committed scope above (only
+if we later judge they earn their keep): richer live tool-progress cards beyond a
+simple "working…" indicator, and per-user display names (an optional `displayName` on
+the user record). Responsive/mobile layout is **baseline production quality in both
+phases**, never a deferred item.
 
 ## Open questions / verify during build
 
@@ -268,6 +292,9 @@ Phase 1 is a finished, releasable feature on its own; Phase 2 adds further capab
   in the same thread (matches the documented contract; verify in practice).
 - Confirm the exact **content-type / framing** of the agent's streaming response and
   map it cleanly to our SSE frames.
+- (Phase 2) Confirm the configured agent's **model supports image input** (vision) and
+  the exact multimodal content format its OpenAI endpoint expects (a base64 `data:`
+  URI in an `image_url` part vs. a hosted URL) — this gates the photo workflow.
 - Decide the transcript **cap** (number of turns retained for display) and where
   exactly under `/app/var` it lives (a dedicated file alongside `users.json`, never
   inside `DATA_DIR`).
