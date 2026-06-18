@@ -87,4 +87,11 @@ describe('AssistantPage', () => {
     expect(screen.getByText(/not available|unavailable|disabled/i)).toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/message|ask/i)).toBeNull();
   });
+
+  it('shows the dynamic label in the unavailable notice', () => {
+    mockedUseSession.mockReturnValue(session({ assistantEnabled: false, assistantLabel: 'First Mate' }));
+    renderPage();
+    expect(screen.getByText(/First Mate/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Purser/i)).toBeNull();
+  });
 });

@@ -43,7 +43,7 @@ export default function AssistantPage(): JSX.Element {
       await api.assistantSend(message, (delta) => { acc += delta; setStreaming(acc); });
       setTurns((t) => [...t, { role: 'assistant', content: acc, at: new Date().toISOString() }]);
     } catch {
-      setError("Couldn't reach the Purser. Try again in a moment.");
+      setError(`Couldn't reach ${assistantLabel ?? 'the assistant'}. Try again in a moment.`);
     } finally {
       setStreaming('');
       setBusy(false);
@@ -58,7 +58,7 @@ export default function AssistantPage(): JSX.Element {
   if (!assistantEnabled) {
     return (
       <div className="page-wrap">
-        <div className={styles.notice}>The Purser chat is not available in this deployment.</div>
+        <div className={styles.notice}>{`${assistantLabel ?? 'the assistant'} is not available in this deployment.`}</div>
       </div>
     );
   }
@@ -92,6 +92,7 @@ export default function AssistantPage(): JSX.Element {
       <div className={styles.composer}>
         <textarea
           rows={2}
+          aria-label="Message"
           placeholder="Message the Purser…"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
