@@ -248,15 +248,19 @@ to the agent**. Comparable in size to "one existing SPA page (e.g.
 `MaintenancePage`) + one server route group + a small store + the sync-style
 `/api/me` surface."
 
-- **Phase 1 (MVP):** `assistant.ts` client, `routes/assistant.ts` (SSE), `chatlog.ts`
-  store, `config.ts` additions, `/api/me` surface, `AssistantPage` + nav + router,
-  compose `extra_hosts`, full tests, README + CLAUDE.md updates. → streaming chat,
-  communal thread, per-person memory, owner + crew, demo-off, off-by-default.
+Both phases are **production-quality, fully tested, no shortcuts**. The split is about
+sequencing complete increments, not about shipping something provisional first —
+Phase 1 is a finished, releasable feature on its own; Phase 2 adds further capability.
+
+- **Phase 1 (initial release):** `assistant.ts` client, `routes/assistant.ts` (SSE),
+  `chatlog.ts` store, `config.ts` additions, `/api/me` surface, `AssistantPage` + nav
+  + router, compose `extra_hosts`, full tests, README + CLAUDE.md updates. → streaming
+  chat, communal thread, per-person memory, owner + crew, demo-off, off-by-default.
   Roughly **5 new files + a handful of wiring points**; a focused ~1–2 day TDD build
   for someone fluent in this codebase.
-- **Phase 2 (optional polish):** live tool-progress cards, history-reset UI, per-user
-  display names (optional `displayName` on the user record), file/photo to the agent,
-  mobile refinements.
+- **Phase 2 (follow-on enhancements):** live tool-progress cards, history-reset UI,
+  per-user display names (optional `displayName` on the user record), file/photo to
+  the agent, mobile refinements.
 
 ## Open questions / verify during build
 
