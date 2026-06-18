@@ -24,6 +24,7 @@ import type {
   LoginResult,
   User,
   AssignableRole,
+  AssistantTurn,
 } from './types.js';
 
 /** A normalized API failure: HTTP status + the server's error message. */
@@ -208,6 +209,42 @@ export const api = {
     const form = new FormData();
     form.append('photo', file);
     return request<{ ref: string }>('/api/photos', { method: 'POST', body: form });
+  },
+
+  // ---- assistant (optional feature; routes exist only when enabled) ----
+  assistantHistory: () => get<{ turns: AssistantTurn[] }>('/api/assistant/history'),
+  assistantReset: () => del('/api/assistant/history'),
+  /**
+   * POST a message and receive the reply as SSE deltas via `onDelta`. We use a
+   * fetch reader (EventSource is GET-only). Throws ApiError on a non-2xx or on an
+   * SSE `error` event.
+   */
+  assistantSend: async (message: string, onDelta: (text: string) => void): Promise<void> => {
+    const res = await fetch('/api/assistant/chat', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify({ message }),
+    });
+    if (!res.ok || !res.body) throw await parseError(res);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const events = buf.split('\n\n');
+      buf = events.pop() ?? '';
+      for (const evt of events) {
+        const lines = evt.split('\n');
+        const ev = lines.find((l) => l.startsWith('event:'))?.slice(6).trim();
+        const dataLine = lines.find((l) => l.startsWith('data:'))?.slice(5).trim();
+        if (!dataLine) continue;
+        if (ev === 'delta') onDelta(JSON.parse(dataLine) as string);
+        else if (ev === 'error') throw new ApiError(502, (JSON.parse(dataLine) as { error: string }).error);
+      }
+    }
   },
 } as const;
 

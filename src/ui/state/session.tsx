@@ -23,6 +23,9 @@ export interface Session {
   isCrew: boolean;
   /** Authenticated = anything other than an anonymous guest (owner or crew, or demo's owner-equivalent). */
   isAuthed: boolean;
+  /** The optional Purser chat. Always populated by the provider (defaults below). */
+  assistantEnabled?: boolean;
+  assistantLabel?: string;
   /** Re-fetch GET /api/me (after a login/logout, or to recover from a stale view). */
   refresh: () => Promise<void>;
   login: (username: string, password: string) => Promise<void>;
@@ -84,6 +87,8 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
       isOwner,
       isCrew,
       isAuthed: me.role !== 'guest',
+      assistantEnabled: me.assistant?.enabled ?? false,
+      assistantLabel: me.assistant?.label ?? 'Ask the Purser',
       refresh,
       login,
       logout,
