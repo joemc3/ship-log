@@ -56,6 +56,25 @@ services:
       # Behind the Pangolin tunnel (TLS terminated upstream) cookies are still
       # served over https end-to-end; keep COOKIE_SECURE true in production.
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
+
+      # --- Optional AI Purser (off unless ASSISTANT_URL is set) ----------------
+      # An OpenAI-compatible agent endpoint. Host process example below; omit to
+      # disable the feature entirely (no nav item, routes return 404).
+      ASSISTANT_URL: ${ASSISTANT_URL:-}
+      # Optional bearer token for the agent endpoint (or ASSISTANT_API_KEY_FILE).
+      ASSISTANT_API_KEY: ${ASSISTANT_API_KEY:-}
+      # The model string sent in the request (agent may treat it as a passthrough).
+      ASSISTANT_MODEL: ${ASSISTANT_MODEL:-}
+      # UI label for the nav item + page (default "Ask the Purser").
+      ASSISTANT_LABEL: ${ASSISTANT_LABEL:-}
+      # Shared conversation id for the communal thread (default "shiplog").
+      ASSISTANT_SESSION_ID: ${ASSISTANT_SESSION_ID:-}
+
+    # Reach a Hermes/OpenAI-compatible agent running on the HOST (not in a
+    # container) for the optional Purser chat. host-gateway resolves to the host.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     volumes:
       # Users store dir (USERS_PATH's parent). Survives restarts; never in git.
       - shiplog-users:/app/var

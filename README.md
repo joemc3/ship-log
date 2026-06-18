@@ -165,6 +165,61 @@ Key environment variables (full reference in the deploy checklist):
 The users store (`users.json`) is deployment state, not data — keep it on its own
 volume and **back it up**; it's the one thing the data repo can't regenerate.
 
+## Optional: connect an AI Purser
+
+Ship's Log can optionally connect to a self-hosted, OpenAI-compatible AI agent
+that acts as the boat's "Purser" — an in-app chat that knows who is talking to it
+and can answer questions about the boat, the voyage, or anything else you teach it.
+This is entirely optional and owner-authorized.
+
+**Off by default.** With `ASSISTANT_URL` unset the feature is entirely absent — no
+nav item, no route, and `/api/me` returns `assistant.enabled: false`. The app is
+fully functional without it. To run with no Purser at all, simply leave
+`ASSISTANT_URL` unset (the default).
+
+**Prerequisites.** You need a self-hosted agent that exposes an OpenAI-compatible
+HTTP endpoint (`POST /v1/chat/completions` with streaming). The agent can run on
+the same host, another container, or a nearby machine. Any OpenAI-compatible
+server works; [Nous Research Hermes](https://huggingface.co/NousResearch) agents
+with the Hermes-style API server are one example.
+
+**Configuration.** Set these variables in your `.env` or compose override:
+
+| Variable | Purpose |
+|---|---|
+| `ASSISTANT_URL` | Base URL of the agent (e.g. `http://host.docker.internal:11434`). Setting this enables the feature. |
+| `ASSISTANT_API_KEY` | Bearer token for the agent, if it requires one. Or supply `ASSISTANT_API_KEY_FILE` (VPS secret form). |
+| `ASSISTANT_MODEL` | Model string forwarded to the agent (the agent may treat it as a passthrough). |
+| `ASSISTANT_LABEL` | UI label for the nav item and page (default: `Ask the Purser`). |
+| `ASSISTANT_SESSION_ID` | Shared conversation id for the communal thread (default: `shiplog`). |
+
+**Container→host networking.** When the agent runs on the Docker host (the common
+case), the app container reaches it via `host.docker.internal`. The compose file
+already wires `extra_hosts: host.docker.internal:host-gateway` for you. Set:
+
+```
+ASSISTANT_URL=http://host.docker.internal:<port>
+```
+
+**Security.** Keep the agent port reachable by the container but **not publicly
+exposed** — block it at the host firewall. The Pangolin tunnel only fronts Ship's
+Log itself, not the agent. Set `ASSISTANT_API_KEY` if the agent supports it.
+**Identity is server-derived**: the app injects the verified session username into
+every request; a crew member cannot impersonate the owner, and guests never reach
+the feature (it is owner + crew only).
+
+**Per-crew memory (Hermes agents).** The app sends an `X-Hermes-Session-Key`
+header equal to the logged-in username. A Hermes agent uses this to maintain a
+separate long-term memory model per person, so crew members get responses shaped
+to their own history with the boat. Non-Hermes agents ignore the header — the
+chat still works fine.
+
+**Cost note.** The assistant chat is intentionally not cost-redacted. The agent
+receives free-text messages and returns free-text responses; it does not receive
+dataset JSON. If a crew member asks it a cost question it may answer based on
+whatever the agent was trained on — the owner accepted this by enabling the
+feature. The normal app pages remain server-side redacted for crew and guests.
+
 ## Development
 
 ```bash

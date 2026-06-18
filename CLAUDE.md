@@ -436,6 +436,56 @@ same change.
   secrets → reconcile pinned IP → `compose up` → log in as owner) is walked through
   step-by-step in `README.md` ("VPS deploy walkthrough" + "Credential modes").
 
+## Optional assistant (Purser) layer
+
+- **Three units:**
+  - `src/server/assistant.ts` — the OpenAI-compatible streaming client. Sends the
+    chat history + system message to the agent via `POST /v1/chat/completions`
+    (streaming) and pipes the SSE response back to the browser. Injects
+    `X-Hermes-Session-Id` (shared conversation id, `ASSISTANT_SESSION_ID`) and
+    `X-Hermes-Session-Key` (the authenticated username, per-crew memory) as headers
+    derived from `req.viewer` — never from the client.
+  - `src/server/chatlog.ts` — the shared, capped transcript store. Persists the
+    communal turn history in the **users volume** (`/app/var`, alongside
+    `users.json`) — **never** in the data repo. The log is capped to a fixed window
+    to bound size and context length.
+  - `src/server/routes/assistant.ts` — the route handlers:
+    `GET /api/assistant/history` (read the transcript), `POST /api/assistant/chat`
+    (send a turn, stream the reply), `DELETE /api/assistant/history` (clear the
+    log). All three routes require authentication; guests get a 401.
+
+- **Optionality:** `registerAssistantRoutes` is a no-op when `ctx.assistant` is
+  absent. `index.ts` only builds `AssistantDeps` when `config.assistant` is set,
+  which requires both a non-demo environment and `ASSISTANT_URL`. When unset, no
+  routes are registered and `/api/me` returns `assistant: { enabled: false }`.
+  `/api/me` carries `assistant: { enabled, label }` for authed and demo viewers
+  (same shape as the `sync` summary).
+
+- **Identity injection:** the speaker system message + `X-Hermes-Session-Id`
+  (shared) + `X-Hermes-Session-Key` (`username`) are all server-derived from
+  `req.viewer`. The client never supplies them — a crew member cannot claim to be
+  the owner.
+
+- **Generic-naming rule:** no specific boat name or agent name is hardcoded in the
+  repo. The nav item and page title come from `ASSISTANT_LABEL` (default `"Ask the
+  Purser"`). "Purser" is the generic role/default label; the operator's agent
+  identity is their own.
+
+- **Cost-redaction exception (intentional, owner-authorized).** The assistant
+  streams agent free-text — not dataset JSON — so `redaction-golden` is unaffected.
+  Because the agent's answers are not drawn from the dataset, there is nothing for
+  `redactDataset` to strip. If a crew member asks the agent a cost question it may
+  answer based on whatever the agent was trained on. The owner accepted this by
+  enabling the feature. **Do not treat crew access to the assistant page as a
+  redaction bug** — it is correct by design. Never route dataset JSON through the
+  assistant endpoint.
+
+- **Same-change rule:** when you add an `ASSISTANT_*` config var, update
+  `config.ts` (add to `SECRET_FILE_VARS` if secret-bearing), `docker-compose.yml`
+  (new env line in the Purser block), `README.md` (the config table), and this
+  section together. The `_FILE` indirection pattern for secret-bearing vars is
+  described in "Hardening & config invariants" above.
+
 ## Data repos & Cowork enablement (P3)
 
 There are **two** datasets in this monorepo, and they are deliberately distinct —
