@@ -328,7 +328,10 @@ a { color: var(--ink-600); }
 .find-row:hover { background: var(--paper-2); }
 
 /* ============================================================ DRAWER (mobile nav) */
-.scrim { position: fixed; inset: 0; background: rgba(12,34,48,0.5); z-index: 40; }
+/* Backdrop sits below the drawer (.sidebar z-index:30) but above the topbar
+ * (z-index:20) + page, so it dims the content without covering — or blocking
+ * clicks on — the open drawer. */
+.scrim { position: fixed; inset: 0; background: rgba(12,34,48,0.5); z-index: 25; }
 
 /* ============================================================ RESPONSIVE */
 @media (max-width: 920px) {

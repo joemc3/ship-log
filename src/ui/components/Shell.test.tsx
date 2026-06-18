@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -164,5 +166,34 @@ describe('Shell', () => {
   it('shows the Purser nav item with its label when enabled', async () => {
     renderShell(session({ role: 'crew', isCrew: true, isAuthed: true, assistantEnabled: true, assistantLabel: 'Ask the Purser' }));
     expect(await screen.findByRole('link', { name: /ask the purser/i })).toBeInTheDocument();
+  });
+});
+
+/* Regression guard for the mobile drawer: the .scrim backdrop must stack BELOW
+ * the .sidebar drawer (and above the .topbar), otherwise the full-screen scrim
+ * paints over the open drawer — dimming it and swallowing every nav click, so
+ * the mobile menu opens but nothing inside it is clickable. jsdom does not
+ * compute z-index stacking or hit-testing, so we pin the invariant at the CSS
+ * source. */
+describe('mobile drawer stacking (app.css)', () => {
+  const css = readFileSync(resolve(process.cwd(), 'src/ui/styles/app.css'), 'utf8');
+
+  const zIndexOf = (selector: string): number => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const block = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(css);
+    const body = block?.[1];
+    expect(body, `expected a CSS rule for ${selector}`).toBeDefined();
+    const z = /z-index:\s*(-?\d+)/.exec(body ?? '');
+    const value = z?.[1];
+    expect(value, `expected a z-index on ${selector}`).toBeDefined();
+    return Number(value);
+  };
+
+  it('renders the drawer above its backdrop and the backdrop above the topbar', () => {
+    const scrim = zIndexOf('.scrim');
+    const sidebar = zIndexOf('.sidebar');
+    const topbar = zIndexOf('.topbar');
+    expect(scrim).toBeLessThan(sidebar);
+    expect(scrim).toBeGreaterThan(topbar);
   });
 });
