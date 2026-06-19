@@ -79,8 +79,17 @@ same change.
   `store.test.ts`). The store passes `recordPath(...)` / `photos/<name>` for each
   mutation. Commits are authored as the logged-in user; `FALLBACK_AUTHOR`
   (`Ship's Log <shiplog@localhost>`) is the generic identity for any system
-  commit (used when no author is supplied). If `DATA_DIR` is not a git repo, the
-  store persists files **without** committing (warned) so local scratch dirs work.
+  commit (used when no author is supplied). **`git commit` also needs a separate
+  committer identity** (the per-commit `--author` only sets the author), which
+  git otherwise auto-detects from the host's git config / OS account — absent on
+  a fresh deploy clone (e.g. the slim image's `node` user has an empty GECOS and
+  no `~/.gitconfig`), making `git commit` abort *after* `git add` and strand the
+  write staged-but-uncommitted. So `GitRepo.open` sets the clone's **local**
+  `user.name`/`user.email` to `FALLBACK_AUTHOR` (the app is the committer; the
+  author stays the logged-in user), guaranteeing commits succeed in an
+  identity-less environment (golden-tested in `git.test.ts`). If `DATA_DIR` is
+  not a git repo, the store persists files **without** committing (warned) so
+  local scratch dirs work.
 - **Remote sync (P2, git layer).** `GitRepo.pullRebase()` / `push()` wrap
   `simple-git`'s `pull --rebase` / `push` and return structured results (never
   throw on the expected conflict path). `pullRebase()` → `PullResult { status:
