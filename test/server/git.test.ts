@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -136,6 +136,48 @@ describe('GitRepo.commitPaths', () => {
     const repo = await GitRepo.open(dir);
     expect(repo.enabled).toBe(false);
     expect(await repo.commitPaths(['a.md'], 'noop', { name: 'X', email: 'x@x' })).toBeNull();
+  });
+});
+
+describe('GitRepo.commitPaths — committer identity (no ambient git identity)', () => {
+  // Simulate a fresh deploy clone (e.g. the slim Docker image's `node` user):
+  // no system/global git identity AND GECOS auto-detection disabled. In that
+  // environment `git commit` aborts AFTER `git add` has staged the file — the
+  // production bug where a trip write left the record staged-but-uncommitted,
+  // so it never pushed and was invisible to the data repo. GitRepo must give the
+  // clone a committer identity itself rather than rely on the host's git config.
+  let prevGlobal: string | undefined;
+  let prevSystem: string | undefined;
+
+  beforeEach(() => {
+    const cfg = join(tmpDir(), 'gitconfig');
+    writeFileSync(cfg, '[user]\n\tuseConfigOnly = true\n');
+    prevGlobal = process.env.GIT_CONFIG_GLOBAL;
+    prevSystem = process.env.GIT_CONFIG_SYSTEM;
+    process.env.GIT_CONFIG_GLOBAL = cfg;
+    process.env.GIT_CONFIG_SYSTEM = '/dev/null';
+  });
+
+  afterEach(() => {
+    if (prevGlobal === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+    else process.env.GIT_CONFIG_GLOBAL = prevGlobal;
+    if (prevSystem === undefined) delete process.env.GIT_CONFIG_SYSTEM;
+    else process.env.GIT_CONFIG_SYSTEM = prevSystem;
+  });
+
+  it('commits a write even when the clone has no externally-configured identity', async () => {
+    const dir = tmpDir();
+    // Deliberately do NOT set user.name/user.email (unlike initRepo) — the clone
+    // arrives with no identity, exactly as a fresh deploy clone does.
+    await simpleGit(dir).init();
+    writeFileSync(join(dir, 'a.md'), 'hello');
+    const repo = await GitRepo.open(dir);
+    expect(repo.enabled).toBe(true);
+    const sha = await repo.commitPaths(['a.md'], 'add a', { name: 'Cap', email: 'cap@boat.test' });
+    expect(sha).toBeTruthy();
+    // The logged-in user is the AUTHOR; the clone's committer is the app fallback.
+    const line = (await simpleGit(dir).raw(['log', '-1', '--format=%an <%ae>|%cn <%ce>'])).trim();
+    expect(line).toBe(`Cap <cap@boat.test>|${FALLBACK_AUTHOR.name} <${FALLBACK_AUTHOR.email}>`);
   });
 });
 

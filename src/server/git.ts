@@ -128,6 +128,7 @@ export class GitRepo {
       console.warn(`GitRepo: could not determine repo status for ${dir}; commits disabled.`, err);
       enabled = false;
     }
+    if (enabled) await ensureCommitterIdentity(git, dir);
     return new GitRepo(git, dir, enabled);
   }
 
@@ -290,6 +291,31 @@ export class GitRepo {
     } catch (err) {
       console.warn(`GitRepo: rebase --abort failed in ${this.dir}; tree may need manual cleanup.`, err);
     }
+  }
+}
+
+/**
+ * Guarantee the working clone has a COMMITTER identity in its local config.
+ *
+ * `commitPaths` sets the AUTHOR per commit via `--author` (the logged-in app
+ * user), but git also needs a separate committer identity, which it otherwise
+ * auto-detects from the host's git config or the OS account (GECOS). A fresh
+ * deploy clone has neither — e.g. the slim Docker image's `node` user has an
+ * empty GECOS and no `~/.gitconfig` — so `git commit` aborts ("Committer
+ * identity unknown") AFTER `git add` has already staged the file. That stranded
+ * the write on disk + in the index but never committed it, so it never pushed
+ * and never reached the data repo (the reported "trip saved but not committed"
+ * bug). We set the clone's local identity to {@link FALLBACK_AUTHOR} — the app
+ * is the committer; the logged-in user remains the author. Local scope only
+ * (never global/system), idempotent, and best-effort: a config failure must not
+ * stop the store from opening.
+ */
+async function ensureCommitterIdentity(git: SimpleGit, dir: string): Promise<void> {
+  try {
+    await git.addConfig('user.name', FALLBACK_AUTHOR.name);
+    await git.addConfig('user.email', FALLBACK_AUTHOR.email);
+  } catch (err) {
+    console.warn(`GitRepo: could not set a local committer identity in ${dir}; commits may fail.`, err);
   }
 }
 
