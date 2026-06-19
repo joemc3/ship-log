@@ -197,3 +197,23 @@ describe('mobile drawer stacking (app.css)', () => {
     expect(scrim).toBeGreaterThan(topbar);
   });
 });
+
+/* Regression guard for the mobile drawer scroll: the drawer is a fixed-height
+ * flex column (.sidebar) with a pinned brand on top and a pinned foot at the
+ * bottom (Share + the login/change-password/logout block). The .nav list
+ * between them must be the scroll region, or a tall menu pushes the foot off
+ * the bottom of the screen with no way to reach it. For overflow-y to actually
+ * scroll inside a flex column, .nav needs flex-grow AND min-height:0 (the
+ * default min-height:auto refuses to shrink below content). jsdom does not do
+ * layout, so we pin these properties at the CSS source. */
+describe('mobile drawer scroll (app.css)', () => {
+  const css = readFileSync(resolve(process.cwd(), 'src/ui/styles/app.css'), 'utf8');
+  const navBody = (/\.nav\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').replace(/\s+/g, ' ');
+
+  it('makes the .nav list a flexible, scrollable region', () => {
+    expect(navBody, 'expected a .nav CSS rule').not.toBe('');
+    expect(navBody).toMatch(/overflow-y:\s*auto/);
+    expect(navBody).toMatch(/min-height:\s*0/);
+    expect(navBody).toMatch(/flex(-grow)?:\s*1/);
+  });
+});
