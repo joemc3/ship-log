@@ -118,7 +118,10 @@ a { color: var(--ink-600); }
 .brand-sub { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--brass-bright); margin-top: 6px; }
 .brand-compass { color: var(--brass-bright); flex: 0 0 auto; }
 
-.nav { padding: 14px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+/* flex:1 + min-height:0 make this the scroll region of the fixed-height sidebar
+ * column, so a tall menu scrolls here while the brand + foot stay pinned and
+ * reachable (overflow-y:auto can't scroll a flex item without min-height:0). */
+.nav { padding: 14px 12px; display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .nav-group-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(242,232,213,0.42); padding: 14px 12px 6px; }
 .nav-item {
   display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: var(--r-md);
