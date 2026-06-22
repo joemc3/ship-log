@@ -29,6 +29,7 @@ import SearchPage from './pages/SearchPage.js';
 import AdminPage from './pages/AdminPage.js';
 import AccountPage from './pages/AccountPage.js';
 import AssistantPage from './pages/AssistantPage.js';
+import ConditionsPage from './pages/ConditionsPage.js';
 
 function Loading(): JSX.Element {
   return (
@@ -82,6 +83,7 @@ export function AppRoutes(): JSX.Element {
       <Route element={<ShellLayout />}>
         {/* Welcome is guest-allowed (the only page a guest sees besides Login). */}
         <Route path="/" element={<WelcomePage />} />
+        <Route path="/conditions" element={<ConditionsPage />} />
 
         {/* Authenticated reads (crew + owner). */}
         <Route path="/trips" element={<RequireAuth><TripsPage /></RequireAuth>} />

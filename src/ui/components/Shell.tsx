@@ -36,7 +36,10 @@ interface NavGroup {
 // Mirrors the prototype NAV groups; `show` adds the role gates the prototype
 // didn't need (it had no roles). Welcome is always visible; the rest require auth.
 const NAV: NavGroup[] = [
-  { group: 'Aboard', items: [{ to: '/', label: 'Welcome', icon: 'helm' }] },
+  { group: 'Aboard', items: [
+    { to: '/', label: 'Welcome', icon: 'helm' },
+    { to: '/conditions', label: 'Conditions', icon: 'waves' },
+  ] },
   { group: 'Find', items: [{ to: '/search', label: 'Search', icon: 'search', show: (s) => s.isAuthed }] },
   {
     group: 'Operations',
@@ -72,6 +75,7 @@ const CRUMBS: Record<string, string> = {
   account: 'Account',
   login: 'Sign in',
   assistant: 'Purser',
+  conditions: 'Conditions',
 };
 
 /** Search-hit collection -> its page route + list icon. */

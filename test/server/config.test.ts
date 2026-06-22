@@ -215,3 +215,15 @@ describe('config — assistant', () => {
     expect(c.assistant).toBeUndefined();
   });
 });
+
+describe('CONDITIONS_FETCH', () => {
+  it('defaults conditionsFetch to true when unset', () => {
+    const cfg = loadConfig({ DATA_DIR: '/tmp/x', SESSION_SECRET: 's' }, DEMO);
+    expect(cfg.conditionsFetch).toBe(true);
+  });
+  it('disables conditionsFetch only for the string "false"', () => {
+    expect(loadConfig({ DATA_DIR: '/tmp/x', SESSION_SECRET: 's', CONDITIONS_FETCH: 'false' }, DEMO).conditionsFetch).toBe(false);
+    expect(loadConfig({ DATA_DIR: '/tmp/x', SESSION_SECRET: 's', CONDITIONS_FETCH: 'true' }, DEMO).conditionsFetch).toBe(true);
+    expect(loadConfig({ DATA_DIR: '/tmp/x', SESSION_SECRET: 's', CONDITIONS_FETCH: 'FALSE' }, DEMO).conditionsFetch).toBe(false);
+  });
+});

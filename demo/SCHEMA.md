@@ -301,3 +301,80 @@ a record:
 
 "Today" is the real current date. Keep `due`/`expires`/`inspect`/`service` dates
 honest and the derived views take care of themselves.
+
+---
+
+## Conditions — `conditions.md` (singleton)
+
+`conditions.md` at the repo root configures the all-access **Conditions** page
+(weather + tides). It is a **singleton**, not a collection — there is no id
+prefix, no per-record file, no cross-links, and **no monetary or cost data**.
+
+`source` controls who fills the weather and tide data:
+
+- **`api`** — the app fetches live weather (Open-Meteo) and tides (NOAA CO-OPS)
+  at render time. Requires no further agent action. **NOAA tides are US-only**
+  (US coastal stations only); the weather fetch (Open-Meteo) works worldwide.
+- **`agent`** — a Cowork/Hermes agent running on a cron fills `weather.periods`
+  and `tides.predictions` directly in this file, then commits and pushes. The
+  app serves what the agent last wrote. **Agent mode works worldwide** — use it
+  for non-US locations where NOAA has no stations.
+
+The `update-conditions` skill (`.claude/skills/update-conditions/SKILL.md`)
+automates the agent-mode workflow.
+
+| Field | Type | Req | Notes |
+| ----- | ---- | --- | ----- |
+| `source` | enum | yes | **`api`** \| **`agent`** |
+| `location` | object | yes | see below |
+| `weather` | object | no | filled by agent or live fetch; see below |
+| `tides` | object | no | filled by agent or live fetch; see below |
+
+**location** fields: `label` (string, required — shown on the page), `lat`
+(number, required — decimal degrees), `lon` (number, required — decimal degrees),
+`asOf` (ISO-8601 string, optional — timestamp of last location update).
+
+**weather** fields: `asOf` (ISO-8601 string, optional), `source` (string,
+optional — e.g. "NWS marine zone AMZ330"), `summary` (string, optional — one-line
+forecast), `periods` (array, optional) — each period: `time` (ISO-8601 string,
+required), `windDir` (string, optional), `windKt` (number, optional),
+`gustKt` (number, optional), `tempF` (number, optional), `seasFt` (number,
+optional), `sky` (string, optional), `precipPct` (number, optional).
+
+**tides** fields: `stations` (array, optional) — each station: `id` (string,
+required — NOAA CO-OPS station id), `name` (string, required), `area` (string,
+optional), `primary` (boolean, optional); `predictions` (object, optional) —
+keyed by station id, each value is an array of `{ type: H|L, time (ISO-8601 Z),
+heightFt? }`.
+
+> **NOAA tides are US-only.** In `api` mode the server fetches NOAA CO-OPS —
+> only US coastal stations are available. For non-US locations, use `agent` mode
+> and have the agent source regional tide data.
+
+> **No monetary data.** Conditions carries no cost or owner-sensitive fields.
+> Every viewer role (owner, crew, guest) may read the Conditions page.
+
+**Full worked agent-mode example:**
+
+```yaml
+source: agent
+location:
+  label: "Charleston Harbor entrance"
+  lat: 32.7765
+  lon: -79.9311
+  asOf: 2026-06-20T13:00:00Z
+weather:
+  asOf: 2026-06-20T13:05:00Z
+  source: "NWS marine zone AMZ330"
+  summary: "SW 10-15 kt, seas 2-3 ft, building Thursday."
+  periods:
+    - { time: 2026-06-20T14:00:00Z, windDir: SW, windKt: 12, gustKt: 18, tempF: 84, seasFt: 2.5, sky: "Partly cloudy", precipPct: 10 }
+tides:
+  stations:
+    - { id: "8665530", name: "Charleston, Customs House Wharf", area: "Charleston Harbor", primary: true }
+    - { id: "8665543", name: "Wando River, Causeway", area: "Wando R." }
+  predictions:
+    "8665530":
+      - { type: H, time: 2026-06-20T15:12:00Z, heightFt: 5.8 }
+      - { type: L, time: 2026-06-20T21:30:00Z, heightFt: 0.4 }
+```

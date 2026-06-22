@@ -75,4 +75,19 @@ describe('cost-redaction golden test', () => {
     assertNoMonetaryKey(done.body, 'POST /api/maintenance/:id/complete');
     expect('costEst' in done.body).toBe(false);
   });
+
+  it('conditions is public and carries no monetary key (crew + guest)', async () => {
+    const { app } = await buildTestApp();
+    // Guest (no login) can read it — it is all-access like welcome.
+    const guest = await request(app).get('/api/conditions');
+    expect(guest.status).toBe(200);
+    assertNoMonetaryKey(guest.body, '/api/conditions (guest)');
+
+    // Crew sees the same money-free surface.
+    const agent = request.agent(app);
+    await agent.post('/api/login').send({ username: 'crew1', password: 'crewpass123' });
+    const crew = await agent.get('/api/conditions');
+    expect(crew.status).toBe(200);
+    assertNoMonetaryKey(crew.body, '/api/conditions (crew)');
+  });
 });

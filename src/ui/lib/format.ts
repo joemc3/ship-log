@@ -34,3 +34,25 @@ export function fmtDateShort(iso: string | null | undefined): string {
   if (!d) return iso ?? '';
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+
+/** `3:12 PM` from a full ISO timestamp (rendered in local time). Empty input
+ *  returns ''; an unparseable string passes through unchanged. */
+export function fmtTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+/** `3h ago` / `30m ago` / `just now` / `in 2h` relative to `now`. Empty or
+ *  unparseable input returns ''. Used for the "updated …" line on Conditions. */
+export function fmtRelative(iso: string | null | undefined, now: Date): string {
+  if (!iso) return '';
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return '';
+  const diffMin = Math.round((now.getTime() - t) / 60_000);
+  if (Math.abs(diffMin) < 1) return 'just now';
+  const m = Math.abs(diffMin);
+  const txt = m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`;
+  return diffMin > 0 ? `${txt} ago` : `in ${txt}`;
+}

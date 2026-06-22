@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fmtMoney, fmtDate, fmtDateShort } from './format.js';
+import { fmtMoney, fmtDate, fmtDateShort, fmtTime, fmtRelative } from './format.js';
 
 describe('fmtMoney', () => {
   it('formats with a leading $ and two decimals', () => {
@@ -31,5 +31,42 @@ describe('fmtDate / fmtDateShort', () => {
   it('passes through a non-ISO or empty value unchanged', () => {
     expect(fmtDate('')).toBe('');
     expect(fmtDate(undefined)).toBe('');
+  });
+});
+
+describe('fmtTime', () => {
+  it('formats a full ISO timestamp as a clock time', () => {
+    const out = fmtTime('2026-06-20T15:12:00Z');
+    expect(out).toMatch(/\d{1,2}:\d{2}\s?(AM|PM)/i);
+  });
+  it('returns empty string for empty input', () => {
+    expect(fmtTime(undefined)).toBe('');
+    expect(fmtTime('')).toBe('');
+  });
+  it('passes an unparseable string through unchanged', () => {
+    expect(fmtTime('not-a-time')).toBe('not-a-time');
+  });
+});
+
+describe('fmtRelative', () => {
+  const now = new Date('2026-06-20T18:00:00Z');
+  it('reports hours ago', () => {
+    expect(fmtRelative('2026-06-20T15:00:00Z', now)).toBe('3h ago');
+  });
+  it('reports minutes ago', () => {
+    expect(fmtRelative('2026-06-20T17:30:00Z', now)).toBe('30m ago');
+  });
+  it('reports just now within a minute', () => {
+    expect(fmtRelative('2026-06-20T18:00:20Z', now)).toBe('just now');
+  });
+  it('reports future as "in Xh"', () => {
+    expect(fmtRelative('2026-06-20T20:00:00Z', now)).toBe('in 2h');
+  });
+  it('reports just now for a sub-minute future time', () => {
+    expect(fmtRelative('2026-06-20T18:00:20Z', now)).toBe('just now');
+  });
+  it('returns empty string for empty/invalid input', () => {
+    expect(fmtRelative(undefined, now)).toBe('');
+    expect(fmtRelative('not-a-date', now)).toBe('');
   });
 });

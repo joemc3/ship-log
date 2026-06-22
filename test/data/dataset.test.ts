@@ -50,4 +50,26 @@ describe('loadDataset', () => {
     writeFileSync(join(dir, 'quickref.yaml'), '- title: missing the required id\n');
     await expect(loadDataset(dir)).rejects.toThrow();
   });
+
+  it('loads the conditions.md singleton from the demo dataset', async () => {
+    const ds = await loadDataset(DEMO);
+    expect(ds.conditions?.source).toBe('agent');
+    expect(ds.conditions?.location.label).toBe('Charleston Harbor entrance');
+    expect(ds.conditions?.tides?.stations?.some((s) => s.area === 'Wando R.')).toBe(true);
+    expect(ds.conditions?.body).toContain('sea breeze');
+  });
+
+  it('returns null conditions when conditions.md is absent', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'shiplog-'));
+    writeFileSync(join(dir, 'boat.yaml'), 'name: Test\n');
+    const ds = await loadDataset(dir);
+    expect(ds.conditions).toBeNull();
+  });
+
+  it('throws on a present-but-invalid conditions.md', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'shiplog-'));
+    writeFileSync(join(dir, 'boat.yaml'), 'name: Test\n');
+    writeFileSync(join(dir, 'conditions.md'), '---\nsource: api\n---\nno location\n');
+    await expect(loadDataset(dir)).rejects.toThrow(/conditions\.md/);
+  });
 });

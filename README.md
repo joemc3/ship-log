@@ -116,6 +116,31 @@ Costs are owner-only and redacted at the API boundary — across reads, search,
 derived views, **and** write responses. A test suite guards that no monetary value
 ever reaches a crew or guest response.
 
+## Conditions page (weather + tides)
+
+The all-access **Conditions** page shows marine weather and tide predictions for
+the location you set in your data repo's `conditions.md` (your boat's current or
+last-known position). Every viewer role — owner, crew, and guest — can read it;
+it carries no cost or owner-sensitive data.
+
+**Two modes** — configure once in `conditions.md` at the root of your data repo:
+
+- **`source: api`** (default) — the app fetches live weather from
+  [Open-Meteo](https://open-meteo.com/) and tide predictions from
+  [NOAA CO-OPS](https://tidesandcurrents.noaa.gov/) at render time. Zero agent
+  setup required. **NOAA tides are US coastal stations only.**
+- **`source: agent`** — a Cowork/Hermes agent running on a cron fills
+  `weather.periods` and `tides.predictions` directly in `conditions.md`, then
+  commits and pushes; the app serves what the agent last wrote. **Works
+  worldwide** — use this for non-US locations where NOAA has no stations. The
+  `update-conditions` skill (shipped inside your data repo) automates the
+  workflow.
+
+Set `CONDITIONS_FETCH=false` to disable server-side outbound fetches entirely
+(useful in air-gapped deployments; agent mode still works).
+
+See `SCHEMA.md` in your data repo for the full `conditions.md` field shape.
+
 ## Working with Claude Cowork
 
 Your data repo is **self-documenting for AI**: forked from `data-template/`, it
@@ -161,6 +186,7 @@ Key environment variables (full reference in the deploy checklist):
 | `USERS_PATH` | the hashed-credential store — kept on its own volume, never in the data repo. |
 | `PULL_INTERVAL` | sync cadence in seconds (default 300). |
 | `COOKIE_SECURE` | `true` behind TLS (also enables HSTS/CSP hardening); `false` for local http. |
+| `CONDITIONS_FETCH` | `true` (default) to allow the server to fetch live weather (Open-Meteo) and tides (NOAA). Set `false` to disable server-side outbound fetches (e.g. in an air-gapped deployment). |
 
 The users store (`users.json`) is deployment state, not data — keep it on its own
 volume and **back it up**; it's the one thing the data repo can't regenerate.

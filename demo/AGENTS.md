@@ -98,6 +98,15 @@ collection, the id rules, and the cross-link table.
    numbers as numbers (not quoted), enum values spelled exactly as `SCHEMA.md`
    lists them. After editing, sanity-check the YAML parses and the dates are real.
 
+6. **`conditions.md` is a singleton — never treat it as a collection record.**
+   The `conditions.md` file at the repo root configures the all-access Conditions
+   page (weather + tides). It carries no cost or owner-sensitive data — every
+   viewer role may read it. It is maintained automatically by the
+   `update-conditions` skill (`.claude/skills/update-conditions/SKILL.md`) on a
+   cron; unless you are refreshing conditions data, leave it alone. See `SCHEMA.md`
+   (Conditions section) for the full field shape and the two modes (`api` vs
+   `agent`).
+
 ## 4. The research-and-write workflow
 
 This is the flow you run to finish a half-written log entry. (A skill automates it;

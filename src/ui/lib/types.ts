@@ -17,6 +17,9 @@ import type {
   Manual,
   Cost,
   Boat,
+  WeatherPeriod,
+  TideStation,
+  TidePrediction,
 } from '../../data/schema.js';
 import type { WithBody } from '../../data/dataset.js';
 import type { SearchHit } from '../../data/search.js';
@@ -36,6 +39,9 @@ export type {
   InventoryTask,
   InventoryTaskKind,
   TaskStatus,
+  WeatherPeriod,
+  TideStation,
+  TidePrediction,
 };
 
 /** A single quick-reference card. The data layer parses `quickref.yaml` as a
@@ -91,6 +97,37 @@ export interface Welcome {
     whatToBring?: string[];
     safety?: string;
   };
+}
+
+/** GET /api/conditions — the all-access weather + tides view. `configured:false`
+ *  means no conditions.md exists yet. In api mode the server fills weather.periods
+ *  and tides.predictions live; in agent mode they come straight from the file. */
+export interface ConditionsLocation {
+  label: string;
+  lat: number;
+  lon: number;
+  asOf?: string;
+}
+export interface ConditionsWeather {
+  asOf?: string;
+  source?: string;
+  summary?: string;
+  periods?: WeatherPeriod[];
+}
+export interface ConditionsTides {
+  stations?: TideStation[];
+  predictions?: Record<string, TidePrediction[]>;
+}
+export interface Conditions {
+  configured: boolean;
+  source?: 'agent' | 'api';
+  location?: ConditionsLocation;
+  weather?: ConditionsWeather;
+  tides?: ConditionsTides;
+  body?: string;
+  asOf?: string;
+  stale: boolean;
+  error?: string;
 }
 
 /** GET /api/derived — server-computed against the real clock. */
