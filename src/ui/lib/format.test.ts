@@ -43,6 +43,9 @@ describe('fmtTime', () => {
     expect(fmtTime(undefined)).toBe('');
     expect(fmtTime('')).toBe('');
   });
+  it('passes an unparseable string through unchanged', () => {
+    expect(fmtTime('not-a-time')).toBe('not-a-time');
+  });
 });
 
 describe('fmtRelative', () => {
@@ -58,6 +61,9 @@ describe('fmtRelative', () => {
   });
   it('reports future as "in Xh"', () => {
     expect(fmtRelative('2026-06-20T20:00:00Z', now)).toBe('in 2h');
+  });
+  it('reports just now for a sub-minute future time', () => {
+    expect(fmtRelative('2026-06-20T18:00:20Z', now)).toBe('just now');
   });
   it('returns empty string for empty/invalid input', () => {
     expect(fmtRelative(undefined, now)).toBe('');
