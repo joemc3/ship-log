@@ -89,4 +89,18 @@ describe('conditions service cache', () => {
     expect(r.periods).toEqual([]);
     expect(r.asOf).toBeUndefined();
   });
+
+  it('fetches tides starting at "now" (begin_date carries the current date + time)', async () => {
+    let tidesUrl = '';
+    const fn = vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.includes('tidesandcurrents')) { tidesUrl = u; return jsonResponse(TIDES); }
+      if (u.includes('marine-api')) return jsonResponse({ hourly: { time: ['2026-06-22T14:00'], wave_height: [2.5] } });
+      return jsonResponse(FORECAST);
+    }) as unknown as typeof globalThis.fetch;
+    const svc = createConditionsService({ fetch: fn, now: () => new Date('2026-06-22T13:34:00Z') });
+    await svc.get(INPUT);
+    // begin_date must reflect now (date + time, percent-encoded), not midnight-only.
+    expect(tidesUrl).toContain('begin_date=20260622%2013%3A34');
+  });
 });

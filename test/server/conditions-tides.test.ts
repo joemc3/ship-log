@@ -45,4 +45,17 @@ describe('fetchTides', () => {
     const fetchImpl = vi.fn(async () => jsonResponse({}, false, 500)) as unknown as typeof globalThis.fetch;
     await expect(fetchTides(fetchImpl, STATIONS, '20260620')).rejects.toThrow(/all tide stations failed/);
   });
+
+  it('URL-encodes a begin_date that carries a time component', async () => {
+    let url = '';
+    const fetchImpl = vi.fn(async (u: string) => {
+      url = String(u);
+      return jsonResponse({ predictions: [] });
+    }) as unknown as typeof globalThis.fetch;
+    // A now-based begin_date includes a time ("YYYYMMDD HH:MM"); the space + colon
+    // must be percent-encoded or the request URL is malformed.
+    await fetchTides(fetchImpl, [{ id: '8665530', name: 'Charleston', primary: true }], '20260622 13:34');
+    expect(url).toContain('begin_date=20260622%2013%3A34');
+    expect(url).not.toContain('begin_date=20260622 13:34');
+  });
 });

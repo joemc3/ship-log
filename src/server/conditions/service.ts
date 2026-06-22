@@ -24,8 +24,11 @@ export interface ConditionsServiceOpts {
 const WEATHER_TTL = 30 * 60_000;       // 30 min
 const TIDES_TTL = 6 * 60 * 60_000;     // 6 h
 
-function yyyymmdd(d: Date): string {
-  return d.toISOString().slice(0, 10).replace(/-/g, '');
+/** NOAA `begin_date` for "now" in GMT: "YYYYMMDD HH:MM". Passing the time (not
+ *  just the date) makes the tide list run from now forward, not from midnight. */
+function beginDateTime(d: Date): string {
+  const iso = d.toISOString(); // 2026-06-22T17:34:26.429Z
+  return `${iso.slice(0, 10).replace(/-/g, '')} ${iso.slice(11, 16)}`;
 }
 
 export function createConditionsService(opts: ConditionsServiceOpts = {}): ConditionsService {
@@ -55,7 +58,7 @@ export function createConditionsService(opts: ConditionsServiceOpts = {}): Condi
       // ---- tides ----
       if (!tidesCache || t - tidesCache.at >= tidesTtl) {
         try {
-          const predictions = await fetchTides(fetchImpl, stations, yyyymmdd(now()));
+          const predictions = await fetchTides(fetchImpl, stations, beginDateTime(new Date(t)));
           tidesCache = { at: t, predictions };
         } catch {
           errored = true; // keep last-good (tidesCache) if any
