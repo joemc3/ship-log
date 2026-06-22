@@ -17,6 +17,7 @@ export interface Config {
   sshKeyPath?: string;   // SSH deploy-key path → GIT_SSH_COMMAND (DATA_SSH_KEY_PATH)
   repoToken?: string;    // fine-grained PAT for an https remote (DATA_REPO_TOKEN)
   pullIntervalMs: number;// sync scheduler cadence (PULL_INTERVAL seconds); default 5 min
+  conditionsFetch: boolean; // CONDITIONS_FETCH=false forbids server-side weather/tide fetches (api mode degrades to "unavailable")
   assistant?: {
     url: string;
     apiKey?: string;
@@ -44,6 +45,7 @@ const envSchema = z.object({
   DATA_SSH_KEY_PATH: z.string().optional(),
   DATA_REPO_TOKEN: z.string().optional(),
   PULL_INTERVAL: z.coerce.number().positive().optional(), // seconds between sync pulls
+  CONDITIONS_FETCH: z.string().optional(),
   ASSISTANT_URL: z.string().optional(),
   ASSISTANT_API_KEY: z.string().optional(),
   ASSISTANT_MODEL: z.string().optional(),
@@ -163,6 +165,7 @@ export function loadConfig(
     repoToken: e.DATA_REPO_TOKEN,
     // PULL_INTERVAL is in SECONDS for operator friendliness; stored as ms.
     pullIntervalMs: e.PULL_INTERVAL ? e.PULL_INTERVAL * 1000 : DEFAULT_PULL_INTERVAL_MS,
+    conditionsFetch: e.CONDITIONS_FETCH?.toLowerCase() !== 'false',
     assistant,
   };
 }
