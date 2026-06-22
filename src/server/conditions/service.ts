@@ -45,7 +45,7 @@ export function createConditionsService(opts: ConditionsServiceOpts = {}): Condi
       // ---- weather ----
       if (!weatherCache || t - weatherCache.at >= weatherTtl) {
         try {
-          const periods = await fetchWeather(fetchImpl, { lat: location.lat, lon: location.lon });
+          const periods = await fetchWeather(fetchImpl, { lat: location.lat, lon: location.lon }, new Date(t));
           weatherCache = { at: t, periods };
         } catch {
           errored = true; // keep last-good (weatherCache) if any
