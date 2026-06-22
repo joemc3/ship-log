@@ -16,9 +16,9 @@ describe('conditionsSchema', () => {
         stations: [{ id: '8665530', name: 'Charleston', area: 'Charleston Harbor', primary: true }],
         predictions: { '8665530': [{ type: 'H', time: '2026-06-20T15:12:00Z', heightFt: 5.8 }] },
       },
-    }) as any;
+    });
     expect(r.source).toBe('agent');
-    expect(r.tides.predictions['8665530'][0].type).toBe('H');
+    expect(r.tides?.predictions?.['8665530']?.[0]?.type).toBe('H');
   });
 
   it('accepts an api-mode config-only record (no readings)', () => {
