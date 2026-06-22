@@ -56,13 +56,7 @@ export function createConditionsService(opts: ConditionsServiceOpts = {}): Condi
       if (!tidesCache || t - tidesCache.at >= tidesTtl) {
         try {
           const predictions = await fetchTides(fetchImpl, stations, yyyymmdd(now()));
-          // Only cache if at least one station returned predictions (empty-on-error doesn't count)
-          const hasData = Object.values(predictions).some((arr) => arr.length > 0);
-          if (hasData) {
-            tidesCache = { at: t, predictions };
-          } else {
-            errored = true; // keep last-good (tidesCache) if any
-          }
+          tidesCache = { at: t, predictions };
         } catch {
           errored = true; // keep last-good (tidesCache) if any
         }

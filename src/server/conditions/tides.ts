@@ -9,32 +9,42 @@ interface CoOpsJson {
 
 /** Fetch 48h of high/low tide predictions per station from NOAA CO-OPS (free,
  *  no key, US-only). `startDate` is YYYYMMDD in GMT. Each station is fetched
- *  independently; a station that errors yields an empty list rather than failing
- *  the whole board. */
+ *  independently; a station that errors (throws or `!res.ok`) yields an empty
+ *  list rather than failing the whole board — UNLESS every station fails, in
+ *  which case this throws so callers can distinguish "total failure" from
+ *  "stations legitimately empty" (an `res.ok` empty `predictions` array is a
+ *  success, not a failure). */
 export async function fetchTides(
   fetchImpl: typeof globalThis.fetch,
   stations: TideStation[],
   startDate: string,
 ): Promise<Record<string, TidePrediction[]>> {
-  const out: Record<string, TidePrediction[]> = {};
-  await Promise.all(
-    stations.map(async (st) => {
+  const results = await Promise.all(
+    stations.map(async (st): Promise<{ id: string; preds: TidePrediction[]; failed: boolean }> => {
       const url =
         `${TIDES_URL}?product=predictions&application=shiplog&begin_date=${startDate}` +
         `&range=48&datum=MLLW&interval=hilo&units=english&time_zone=gmt&format=json&station=${encodeURIComponent(st.id)}`;
       try {
         const res = await fetchImpl(url, { headers: { 'User-Agent': UA } });
-        if (!res.ok) { out[st.id] = []; return; }
+        if (!res.ok) return { id: st.id, preds: [], failed: true };
         const json = (await res.json()) as CoOpsJson;
-        out[st.id] = (json.predictions ?? []).map((p) => ({
-          type: p.type === 'L' ? 'L' : 'H',
+        const preds = (json.predictions ?? []).map((p) => ({
+          type: p.type === 'L' ? ('L' as const) : ('H' as const),
           time: `${p.t.replace(' ', 'T')}:00Z`,
           heightFt: Number(p.v),
         }));
+        return { id: st.id, preds, failed: false };
       } catch {
-        out[st.id] = [];
+        return { id: st.id, preds: [], failed: true };
       }
     }),
   );
+
+  if (stations.length > 0 && results.every((r) => r.failed)) {
+    throw new Error('all tide stations failed');
+  }
+
+  const out: Record<string, TidePrediction[]> = {};
+  for (const r of results) out[r.id] = r.preds;
   return out;
 }

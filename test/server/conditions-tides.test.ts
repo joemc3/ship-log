@@ -40,4 +40,9 @@ describe('fetchTides', () => {
     expect(out['8665530']).toHaveLength(1);
     expect(out['8665543']).toEqual([]);
   });
+
+  it('throws when every station fails', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({}, false, 500)) as unknown as typeof globalThis.fetch;
+    await expect(fetchTides(fetchImpl, STATIONS, '20260620')).rejects.toThrow();
+  });
 });
