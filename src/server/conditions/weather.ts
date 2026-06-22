@@ -35,11 +35,15 @@ interface MarineJson {
 }
 
 /** Fetch + normalize a ~48h marine weather forecast from Open-Meteo (free, no
- *  key, global). Returns up to 16 periods at 3-hour spacing. Throws if the core
- *  forecast call fails; a failed marine (wave) call just drops seasFt. */
+ *  key, global). Returns up to 16 periods at 3-hour spacing, starting from the
+ *  hour covering `now` (Open-Meteo's series begins at 00:00 of the current day in
+ *  the requested timezone, which is in the PAST for any non-GMT location — so we
+ *  must offset to `now` rather than lead with last night's hours). Throws if the
+ *  core forecast call fails; a failed marine (wave) call just drops seasFt. */
 export async function fetchWeather(
   fetchImpl: typeof globalThis.fetch,
   location: { lat: number; lon: number },
+  now: Date,
 ): Promise<WeatherPeriod[]> {
   const q = `latitude=${location.lat}&longitude=${location.lon}`;
   const fUrl = `${FORECAST_URL}?${q}&hourly=temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation_probability,weather_code&forecast_days=3&temperature_unit=fahrenheit&wind_speed_unit=kn&timezone=GMT`;
@@ -64,8 +68,18 @@ export async function fetchWeather(
     });
   }
 
+  // Open-Meteo's hourly series starts at 00:00 of the current day (GMT here), so
+  // it begins in the past for any non-GMT location. Find the hour covering `now`
+  // and sample forward from there, so the first period is the current one — not
+  // last midnight. `start - 1` includes the in-progress hour (the slot <= now).
+  const nowMs = now.getTime();
+  const firstFuture = h.time.findIndex((t) => Date.parse(`${t}:00Z`) >= nowMs);
+  const start = firstFuture === -1
+    ? Math.max(0, h.time.length - 1) // entire series already past (shouldn't happen) → last hour
+    : Math.max(0, firstFuture - 1);
+
   const periods: WeatherPeriod[] = [];
-  for (let i = 0; i < h.time.length && periods.length < 16; i += 3) {
+  for (let i = start; i < h.time.length && periods.length < 16; i += 3) {
     const t = h.time[i];
     if (t === undefined) continue;
     const wave = waveByTime.get(t);
