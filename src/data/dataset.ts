@@ -5,9 +5,9 @@ import { z } from 'zod';
 import { parseRecord } from './record.js';
 import {
   boatSchema, tripSchema, maintenanceSchema, costSchema, vendorSchema,
-  inventorySchema, manualSchema, quickrefSchema,
+  inventorySchema, manualSchema, quickrefSchema, conditionsSchema,
   type Boat, type Trip, type Maintenance, type Cost, type Vendor,
-  type Inventory, type Manual, type Quickref,
+  type Inventory, type Manual, type Quickref, type Conditions,
 } from './schema.js';
 
 /** A record plus its Markdown body narrative. */
@@ -22,6 +22,7 @@ export interface Dataset {
   inventory: WithBody<Inventory>[];
   manuals: WithBody<Manual>[];
   quickref: Quickref;
+  conditions?: WithBody<Conditions> | null;
 }
 
 async function loadCollection<T>(dir: string, sub: string, schema: z.ZodType<T>): Promise<WithBody<T>[]> {
@@ -47,6 +48,27 @@ async function loadCollection<T>(dir: string, sub: string, schema: z.ZodType<T>)
   return out;
 }
 
+/** Load the optional `conditions.md` singleton (frontmatter + Markdown body).
+ *  Missing file => null (feature not set up). A present-but-invalid file is a
+ *  loud error, matching the loader's fail-loud rule. */
+async function loadConditions(dir: string): Promise<WithBody<Conditions> | null> {
+  let raw: string;
+  try {
+    raw = await readFile(join(dir, 'conditions.md'), 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+    return null;
+  }
+  const { data, body } = parseRecord(raw);
+  const parsed = conditionsSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid conditions.md: ${parsed.error.issues.map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}`,
+    );
+  }
+  return { ...parsed.data, body };
+}
+
 export async function loadDataset(dir: string): Promise<Dataset> {
   const boatRaw = parseYaml(await readFile(join(dir, 'boat.yaml'), 'utf8'));
   const boat = boatSchema.parse(boatRaw);
@@ -69,5 +91,6 @@ export async function loadDataset(dir: string): Promise<Dataset> {
     inventory: await loadCollection(dir, 'inventory', inventorySchema),
     manuals: await loadCollection(dir, 'manuals', manualSchema),
     quickref,
+    conditions: await loadConditions(dir),
   };
 }
