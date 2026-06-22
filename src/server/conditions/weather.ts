@@ -75,6 +75,7 @@ export async function fetchWeather(
     const tempF = h.temperature_2m[i];
     const code = h.weather_code[i];
     periods.push({
+      // Open-Meteo (timezone=GMT) returns "YYYY-MM-DDTHH:MM" with no seconds.
       time: `${t}:00Z`,
       windDir: windDir !== undefined ? degToCompass(windDir) : undefined,
       windKt: windKt !== undefined ? Math.round(windKt) : undefined,

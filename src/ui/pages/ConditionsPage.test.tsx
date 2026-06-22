@@ -106,6 +106,7 @@ describe('ConditionsPage', () => {
     });
     renderPage();
     expect(await screen.findByText(/unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Marine forecast/i)).not.toBeInTheDocument();
   });
 
   it('never renders a monetary figure (conditions is cost-free)', async () => {

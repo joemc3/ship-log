@@ -30,6 +30,7 @@ export async function fetchTides(
         const json = (await res.json()) as CoOpsJson;
         const preds = (json.predictions ?? []).map((p) => ({
           type: p.type === 'L' ? ('L' as const) : ('H' as const),
+          // NOAA returns "YYYY-MM-DD HH:MM" (gmt) with no seconds.
           time: `${p.t.replace(' ', 'T')}:00Z`,
           heightFt: Number(p.v),
         }));

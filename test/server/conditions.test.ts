@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
+import { join } from 'node:path';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

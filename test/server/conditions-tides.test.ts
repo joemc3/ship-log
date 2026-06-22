@@ -43,6 +43,6 @@ describe('fetchTides', () => {
 
   it('throws when every station fails', async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({}, false, 500)) as unknown as typeof globalThis.fetch;
-    await expect(fetchTides(fetchImpl, STATIONS, '20260620')).rejects.toThrow();
+    await expect(fetchTides(fetchImpl, STATIONS, '20260620')).rejects.toThrow(/all tide stations failed/);
   });
 });

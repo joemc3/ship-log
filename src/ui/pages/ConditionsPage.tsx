@@ -144,17 +144,19 @@ export default function ConditionsPage(): JSX.Element {
                   </div>
                 </Card>
               )}
-              <Card pad>
-                <div className="eyebrow" style={{ marginBottom: 8 }}>Around the harbor</div>
-                {[...byArea.entries()].map(([area, list]) => (
-                  <div key={area} className={styles.areaGroup}>
-                    <div className={styles.areaLabel}>{area}</div>
-                    {list.map((s) => (
-                      <StationLine key={s.id} st={s} preds={tides?.predictions?.[s.id]} now={now} />
-                    ))}
-                  </div>
-                ))}
-              </Card>
+              {byArea.size > 0 && (
+                <Card pad>
+                  <div className="eyebrow" style={{ marginBottom: 8 }}>Around the harbor</div>
+                  {[...byArea.entries()].map(([area, list]) => (
+                    <div key={area} className={styles.areaGroup}>
+                      <div className={styles.areaLabel}>{area}</div>
+                      {list.map((s) => (
+                        <StationLine key={s.id} st={s} preds={tides?.predictions?.[s.id]} now={now} />
+                      ))}
+                    </div>
+                  ))}
+                </Card>
+              )}
             </div>
           </div>
         )}
