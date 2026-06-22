@@ -30,6 +30,12 @@ describe('Cowork docs — data-template ⇄ demo byte mirror', () => {
     const mirror = readFileSync(join(DEMO, '.claude/skills/update-conditions/SKILL.md'));
     expect(mirror.equals(canonical)).toBe(true);
   });
+
+  it('demo/CLAUDE.md is byte-identical to data-template/CLAUDE.md', () => {
+    const canonical = readFileSync(join(TEMPLATE, 'CLAUDE.md'));
+    const mirror = readFileSync(join(DEMO, 'CLAUDE.md'));
+    expect(mirror.equals(canonical)).toBe(true);
+  });
 });
 
 describe('AGENTS.md — mirrors the schema descriptor (no drift)', () => {
