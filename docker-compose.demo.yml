@@ -1,0 +1,41 @@
+# Ship's Log — PUBLIC DEMO deployment (e.g. ship-log.2524.cloud).
+#
+# STANDALONE — run it by itself, do NOT layer it over docker-compose.yml:
+#   docker compose -f docker-compose.demo.yml up -d --build
+#
+# Why standalone: the base docker-compose.yml defaults DATA_DIR=/app/data, which
+# flips OFF demo mode (config.ts: demo = !DATA_DIR && !DATA_REPO_URL) and then
+# requires SESSION_SECRET — running the base file with no secret crash-loops. This
+# file sets NO data env, so the app boots in pure DEMO mode: it serves the bundled
+# demo/ dataset read-only, with auth and git sync DISABLED, no volumes, no secrets.
+#
+# To refresh the demo after pulling new code:  git pull && docker compose
+# -f docker-compose.demo.yml up -d --build      (one command — rebuild + recreate)
+#
+# Ingress is the Pangolin tunnel ONLY (no published host ports). The container is
+# pinned to the static IP the tunnel routes the demo host to. This DEMO IP
+# (172.18.0.22) is deliberately DISTINCT from the real <boat>-log deployment's IP
+# in docker-compose.vps.yml (172.18.0.7), so the two can coexist on one host.
+name: shiplog-demo
+
+services:
+  demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ship-log:latest          # same image as the real deploy — only the runtime env differs
+    container_name: shiplog-demo
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # Intentionally NOTHING else. No DATA_DIR / DATA_REPO_URL ⇒ demo mode
+      # (read-only, no login, sync off); no SESSION_SECRET is needed in demo.
+    networks:
+      pangolin:
+        ipv4_address: 172.18.0.22
+    # No `ports:` — the Pangolin tunnel is the only ingress.
+
+networks:
+  # Provided by the Pangolin/Gerbil tunnel stack; not created by this compose.
+  pangolin:
+    external: true

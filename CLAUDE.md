@@ -432,8 +432,9 @@ same change.
 
 ## Docker & VPS deployment (P2)
 
-- Four artifacts (`Dockerfile`, `.dockerignore`, `docker-compose.yml`,
-  `docker-compose.vps.yml`) package the app for the Pangolin-tunnel VPS, mirroring
+- Five artifacts (`Dockerfile`, `.dockerignore`, `docker-compose.yml`,
+  `docker-compose.vps.yml`, `docker-compose.demo.yml`) package the app for the
+  Pangolin-tunnel VPS, mirroring
   the DA-RAG pattern. **The runtime layout under `/app` is load-bearing:** the
   entry resolves the repo root as `../..` from `src/server`, so `demo/` and
   `dist/ui` MUST sit at `/app/demo` and `/app/dist/ui`. Preserve that if you change
@@ -461,9 +462,18 @@ same change.
   `*_FILE` indirection (`SESSION_SECRET_FILE`, `OWNER_PASSWORD_FILE` →
   `/run/secrets/*`), which `config.ts` resolves (see "Hardening & config
   invariants"); `DATA_SSH_KEY_PATH` points at the mounted deploy key. The pinned IP
-  (`172.18.0.22`) is **PROVISIONAL** — reconcile with Joe's Gerbil IPAM/subnet
+  (`172.18.0.7`) is **PROVISIONAL** — reconcile with Joe's Gerbil IPAM/subnet
   before deploy. Validate both files with `docker compose -f docker-compose.yml
   [-f docker-compose.vps.yml] config`.
+- **`docker-compose.demo.yml` (standalone, the public demo):** runs the app in
+  pure **demo mode** (NO `DATA_DIR`/`DATA_REPO_URL` ⇒ read-only, no auth, sync off,
+  no secrets, no volumes) on the external `pangolin` network at its OWN pinned IP
+  (`172.18.0.22`, distinct from the real deploy's `172.18.0.7`). It is **not** an
+  override of the base file — run it alone (`docker compose -f docker-compose.demo.yml
+  up -d --build`); layering it over `docker-compose.yml` would re-introduce the
+  base's default `DATA_DIR=/app/data` and crash-loop on the missing
+  `SESSION_SECRET`. This is how the demo container (`shiplog-demo`) is built +
+  refreshed; updating the demo is one command after `git pull`.
 - **Behind TLS:** the Pangolin tunnel terminates TLS upstream, so production runs
   with `COOKIE_SECURE=true` — which is also what flips on HSTS + the CSP
   `upgrade-insecure-requests` (see "Hardening & config invariants"). Keep
