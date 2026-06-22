@@ -11,6 +11,7 @@
 import type {
   Me,
   Welcome,
+  Conditions,
   Boat,
   TripRec,
   MaintenanceRec,
@@ -110,6 +111,7 @@ export const api = {
   // ---- discovery / public ----
   me: () => get<Me>('/api/me'),
   welcome: () => get<Welcome>('/api/welcome'),
+  conditions: () => get<Conditions>('/api/conditions'),
 
   // ---- reads (crew + owner) ----
   boat: () => get<Boat>('/api/boat'),
