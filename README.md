@@ -119,7 +119,8 @@ ever reaches a crew or guest response.
 ## Conditions page (weather + tides)
 
 The all-access **Conditions** page shows marine weather and tide predictions for
-your boat's home port. Every viewer role — owner, crew, and guest — can read it;
+the location you set in your data repo's `conditions.md` (your boat's current or
+last-known position). Every viewer role — owner, crew, and guest — can read it;
 it carries no cost or owner-sensitive data.
 
 **Two modes** — configure once in `conditions.md` at the root of your data repo:
