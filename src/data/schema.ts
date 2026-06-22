@@ -138,6 +138,68 @@ export const boatSchema = z.object({
 });
 export type Boat = z.infer<typeof boatSchema>;
 
+// ---- Conditions (weather + tides) — a singleton config like boat/quickref ----
+// NOT a record collection: no id prefix, no cross-links, no monetary fields.
+// `weather` and `tides.predictions` are optional so an api-mode (config-only)
+// file validates without them; the server fills them in live.
+
+export const conditionLocationSchema = z.object({
+  label: z.string(),
+  lat: z.number(),
+  lon: z.number(),
+  asOf: z.string().optional(),
+});
+export type ConditionLocation = z.infer<typeof conditionLocationSchema>;
+
+export const weatherPeriodSchema = z.object({
+  time: z.string(),
+  windDir: z.string().optional(),
+  windKt: z.number().optional(),
+  gustKt: z.number().optional(),
+  tempF: z.number().optional(),
+  seasFt: z.number().optional(),
+  sky: z.string().optional(),
+  precipPct: z.number().optional(),
+});
+export type WeatherPeriod = z.infer<typeof weatherPeriodSchema>;
+
+export const weatherSchema = z.object({
+  asOf: z.string().optional(),
+  source: z.string().optional(),
+  summary: z.string().optional(),
+  periods: z.array(weatherPeriodSchema).optional(),
+});
+export type Weather = z.infer<typeof weatherSchema>;
+
+export const tideStationSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  area: z.string().optional(),
+  primary: z.boolean().optional(),
+});
+export type TideStation = z.infer<typeof tideStationSchema>;
+
+export const tidePredictionSchema = z.object({
+  type: z.enum(['H', 'L']),
+  time: z.string(),
+  heightFt: z.number().optional(),
+});
+export type TidePrediction = z.infer<typeof tidePredictionSchema>;
+
+export const tidesSchema = z.object({
+  stations: z.array(tideStationSchema).optional(),
+  predictions: z.record(z.string(), z.array(tidePredictionSchema)).optional(),
+});
+export type Tides = z.infer<typeof tidesSchema>;
+
+export const conditionsSchema = z.object({
+  source: z.enum(['agent', 'api']),
+  location: conditionLocationSchema,
+  weather: weatherSchema.optional(),
+  tides: tidesSchema.optional(),
+});
+export type Conditions = z.infer<typeof conditionsSchema>;
+
 /**
  * Per-collection record schemas, keyed by collection name (singular).
  * Excludes `quickref` (parsed as a whole array, not per-record) and `boat`
