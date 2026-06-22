@@ -18,6 +18,8 @@ import { registerAdminRoutes } from './routes/admin.js';
 import { registerWriteRoutes } from './routes/writes.js';
 import { registerPhotoRoute, registerManualRoute, registerWelcomeHeroRoute, registerSpaStatic } from './static.js';
 import { registerAssistantRoutes } from './routes/assistant.js';
+import { registerConditionsRoutes } from './routes/conditions.js';
+import type { ConditionsService } from './conditions/service.js';
 
 export interface AssistantDeps {
   client: AssistantClient;
@@ -32,6 +34,7 @@ export interface AppContext {
   users: UsersStore;
   now: () => Date;
   assistant?: AssistantDeps;
+  conditions?: ConditionsService;
 }
 
 /** ~1 year, the value HSTS preload lists expect. */
@@ -107,6 +110,7 @@ export function createApp(deps: Omit<AppContext, 'now'> & { now?: () => Date }):
   app.use(attachRole(ctx.config, ctx.now));
   registerAuthRoutes(app, ctx);
   registerDataRoutes(app, ctx);
+  registerConditionsRoutes(app, ctx);
   registerAdminRoutes(app, ctx);
   registerWriteRoutes(app, ctx);
   registerPhotoRoute(app, ctx);
