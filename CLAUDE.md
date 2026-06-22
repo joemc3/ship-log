@@ -403,6 +403,33 @@ same change.
   429; change-password success + min-8 + wrong-current; admin list + create/
   update/delete happy paths + each error status).
 
+## Conditions (weather + tides)
+
+- **`conditions.md` singleton** — a YAML-frontmatter file at the data-repo root
+  (like `boat.yaml`), not a collection. Parsed by `conditionsSchema` (in
+  `src/data/schema.ts`) and exposed as `Dataset.conditions` (optional, `null`
+  when absent). Two modes: `source: api` (server fetches live data) and
+  `source: agent` (a Cowork/Hermes agent fills the file on a cron).
+- **`GET /api/conditions`** — all-access (no auth required in demo; `requireAuth`
+  in non-demo, but NOT owner-only). In `api` mode the server fetches live weather
+  from Open-Meteo and tides from NOAA CO-OPS via `src/server/conditions/` (a TTL
+  cache avoids hammering the upstreams on every page load); in `agent` mode it
+  serves the file contents directly. `CONDITIONS_FETCH=false` disables all
+  outbound fetches (useful for air-gapped deployments; agent mode still works).
+- **All-access, no monetary data.** Conditions carries no cost or owner-sensitive
+  fields. The `redaction-golden` test covers every non-owner response — keep it
+  passing. Never add a monetary field to `conditionsSchema`.
+- **NOAA tides are US-only.** In `api` mode the NOAA CO-OPS fetch only works for
+  US coastal stations. For non-US locations, use `source: agent` and have the
+  agent source regional tide data.
+- **`update-conditions` Cowork skill** — canonical in `data-template/`, mirrored
+  to `demo/`, instructs a scheduled agent to refresh `conditions.md`. See the
+  skill for the step-by-step workflow.
+- **Same-change rule:** when you add or rename a Conditions schema field (in
+  `conditionsSchema`), update `SCHEMA.md` and `AGENTS.md` (the `data-template/`
+  canonicals, then `cp` to `demo/`) in the same change, or the doc-drift / mirror
+  tests will fail.
+
 ## Docker & VPS deployment (P2)
 
 - Four artifacts (`Dockerfile`, `.dockerignore`, `docker-compose.yml`,

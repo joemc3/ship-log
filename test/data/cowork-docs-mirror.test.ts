@@ -24,6 +24,12 @@ describe('Cowork docs — data-template ⇄ demo byte mirror', () => {
     // Buffer equality => byte-for-byte (catches any whitespace/encoding drift).
     expect(mirror.equals(canonical)).toBe(true);
   });
+
+  it('demo/.claude/skills/update-conditions/SKILL.md mirrors the template', () => {
+    const canonical = readFileSync(join(TEMPLATE, '.claude/skills/update-conditions/SKILL.md'));
+    const mirror = readFileSync(join(DEMO, '.claude/skills/update-conditions/SKILL.md'));
+    expect(mirror.equals(canonical)).toBe(true);
+  });
 });
 
 describe('AGENTS.md — mirrors the schema descriptor (no drift)', () => {
