@@ -4,6 +4,7 @@ import {
   tripSchema, maintenanceSchema, costSchema, vendorSchema, inventorySchema, manualSchema,
 } from './schema.js';
 import type { Dataset } from './dataset.js';
+import { parseDocument, isMap, isSeq } from 'yaml';
 
 /** The per-record collections (singular keys of `collectionSchemas`). */
 export type CollectionName = keyof typeof collectionSchemas;
@@ -113,4 +114,25 @@ export function deriveId(
 export function toFileContents(record: Record<string, unknown> & { body?: string }): string {
   const { body = '', ...data } = record;
   return serializeRecord(data, body);
+}
+
+/**
+ * Update one engine service's `lastDoneHours`/`lastDoneDate` inside a raw boat.yaml
+ * text, PRESERVING comments, key order, and formatting (uses the yaml Document
+ * API, not a parse→stringify round-trip). Returns the new YAML text, or `null`
+ * when there is no `engine.services` sequence or no service with `serviceId`.
+ */
+export function applyEngineServiceLog(
+  rawYaml: string,
+  serviceId: string,
+  patch: { lastDoneHours: number; lastDoneDate: string },
+): string | null {
+  const doc = parseDocument(rawYaml);
+  const services = doc.getIn(['engine', 'services']);
+  if (!isSeq(services)) return null;
+  const node = services.items.find((item) => isMap(item) && item.get('id') === serviceId);
+  if (!node || !isMap(node)) return null;
+  node.set('lastDoneHours', patch.lastDoneHours);
+  node.set('lastDoneDate', patch.lastDoneDate);
+  return doc.toString();
 }
