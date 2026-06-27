@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isoDate, tripSchema, maintenanceSchema, costSchema, vendorSchema, inventorySchema, manualSchema, quickrefSchema, boatSchema } from '../../src/data/schema.js';
+import { isoDate, tripSchema, maintenanceSchema, costSchema, vendorSchema, inventorySchema, manualSchema, quickrefSchema, boatSchema, engineSchema } from '../../src/data/schema.js';
 
 describe('tripSchema', () => {
   it('accepts a fully populated trip', () => {
@@ -147,5 +147,34 @@ describe('manual/quickref/boat schemas', () => {
   it('still accepts a boat with no heroPhoto', () => {
     expect(() => boatSchema.parse({ name: 'Valkyrie' })).not.toThrow();
     expect(boatSchema.parse({ name: 'Valkyrie' }).heroPhoto).toBeUndefined();
+  });
+});
+
+describe('engine schema (boat.yaml engine block)', () => {
+  const valid = {
+    hoursStart: 412,
+    services: [
+      { id: 'oil', label: 'Engine oil & filter', everyHours: 100, everyMonths: 12, lastDoneHours: 380, lastDoneDate: '2025-08-01' },
+      { id: 'impeller', label: 'Raw-water impeller', everyMonths: 24, lastDoneDate: '2024-05-10' },
+    ],
+  };
+
+  it('accepts a well-formed engine block', () => {
+    expect(engineSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('accepts a boat with no engine block (optional)', () => {
+    expect(boatSchema.safeParse({ name: 'Test' }).success).toBe(true);
+  });
+
+  it('accepts a boat carrying the engine block', () => {
+    expect(boatSchema.safeParse({ name: 'Test', engine: valid }).success).toBe(true);
+  });
+
+  it('rejects a non-positive interval, a negative baseline, and a malformed lastDoneDate', () => {
+    expect(engineSchema.safeParse({ hoursStart: -1 }).success).toBe(false);
+    expect(engineSchema.safeParse({ services: [{ id: 'x', label: 'X', everyHours: 0 }] }).success).toBe(false);
+    expect(engineSchema.safeParse({ services: [{ id: 'x', label: 'X', lastDoneDate: '2025-13-40' }] }).success).toBe(false);
+    expect(engineSchema.safeParse({ services: [{ label: 'no id' }] }).success).toBe(false);
   });
 });

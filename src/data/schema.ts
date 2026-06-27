@@ -115,6 +115,22 @@ export const quickrefSchema = z.array(z.object({
 }));
 export type Quickref = z.infer<typeof quickrefSchema>;
 
+export const engineServiceSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  everyHours: z.number().positive().optional(),
+  everyMonths: z.number().positive().optional(),
+  lastDoneHours: z.number().nonnegative().optional(),
+  lastDoneDate: isoDate.optional(),
+});
+export type EngineService = z.infer<typeof engineServiceSchema>;
+
+export const engineSchema = z.object({
+  hoursStart: z.number().nonnegative().optional(), // baseline meter reading; treated as 0 when absent
+  services: z.array(engineServiceSchema).optional(),
+});
+export type Engine = z.infer<typeof engineSchema>;
+
 export const boatSchema = z.object({
   name: z.string(),
   make: z.string().optional(),
@@ -123,6 +139,7 @@ export const boatSchema = z.object({
   hailingPort: z.string().optional(),
   heroPhoto: z.string().optional(),
   specs: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+  engine: engineSchema.optional(),
   documents: z.object({
     title: z.string().optional(),
     hullId: z.string().optional(),
