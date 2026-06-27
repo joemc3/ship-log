@@ -180,7 +180,7 @@ export const api = {
   completeMaintenance: (id: string, opts: { completed?: string; note?: string } = {}) =>
     postJson<MaintenanceRec>(`/api/maintenance/${eid(id)}/complete`, opts),
 
-  // ---- writes: engine service log (owner-only) ----
+  // ---- writes: engine service log (crew + owner; never touches cost) ----
   logEngineService: (id: string, opts: { atHours?: number; on?: string; note?: string } = {}) =>
     postJson<EngineView>(`/api/engine/services/${eid(id)}/log`, opts),
 
