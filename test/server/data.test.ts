@@ -52,7 +52,7 @@ describe('data routes', () => {
     const res = await crew.get('/api/derived');
     // FIXED_NOW = 2024-07-01: the enriched demo has 4 overdue/due maintenance
     // items and no inventory tasks within the 30-day window at that date.
-    expect(res.body.attention).toBe(4);
+    expect(res.body.attention).toBe(5); // was 4: + the hours-overdue fuel-filter engine service
     expect(res.body.inventoryTasks).toHaveLength(0);
   });
 });

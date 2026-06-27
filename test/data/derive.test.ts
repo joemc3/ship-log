@@ -125,3 +125,14 @@ describe('engineView', () => {
     expect(v.services[0]!.id).toBe('oil');
   });
 });
+
+describe('engine derivation over the demo dataset', () => {
+  it('computes lifetime hours and flags the demo fuel-filter as hours-overdue', async () => {
+    const ds = await loadDataset(DEMO);
+    expect(deriveEngineHours(ds)).toBeCloseTo(421.1, 5); // 412 baseline + 9.1 logged
+    const statuses = deriveEngineServiceStatuses(ds, DEMO_TODAY);
+    const fuel = statuses.find((s) => s.id === 'fuel-filter')!;
+    expect(fuel.status).toBe('overdue');
+    expect(fuel.hoursRemaining! < 0).toBe(true);
+  });
+});

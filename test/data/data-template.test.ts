@@ -62,6 +62,11 @@ describe('data-template scaffold', () => {
     }
   });
 
+  it('carries a minimal, empty engine block (shape, no schedule)', async () => {
+    const ds = await loadDataset(TEMPLATE);
+    expect(ds.boat.engine).toEqual({ hoursStart: 0, services: [] });
+  });
+
   it('keeps examples out of the loader path: one commented example per collection lives under examples/', () => {
     const examplesDir = join(TEMPLATE, 'examples');
     expect(existsSync(examplesDir)).toBe(true);
