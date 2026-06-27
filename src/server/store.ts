@@ -1,10 +1,12 @@
-import { writeFile, rm, mkdir } from 'node:fs/promises';
+import { writeFile, rm, mkdir, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
+import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 import {
   loadDataset, type Dataset,
-  collectionSchemas, createSchemas, maintenanceSchema, isoDate,
+  collectionSchemas, createSchemas, maintenanceSchema, isoDate, boatSchema,
   deriveId, recordPath, toFileContents, COLLECTION_DIR, type CollectionName,
+  applyEngineServiceLog, deriveEngineHours,
 } from '../data/index.js';
 import { GitRepo, type CommitAuthor, type GitCredentials, type PullResult } from './git.js';
 import { compressPhoto, photoName } from './photos.js';
@@ -332,6 +334,50 @@ export class ShipStore {
       await this.reload();
       await this.syncAfterWrite();
       return this.find('maintenance', id)!;
+    });
+  }
+
+  async logEngineService(
+    id: string,
+    opts: { atHours?: unknown; on?: unknown; note?: unknown },
+    author: CommitAuthor,
+  ): Promise<void> {
+    return this.enqueue(async () => {
+      if (
+        opts.atHours !== undefined &&
+        (typeof opts.atHours !== 'number' || !Number.isFinite(opts.atHours) || opts.atHours < 0)
+      ) {
+        throw new WriteError('atHours must be a non-negative number', 400);
+      }
+      const on = opts.on === undefined ? isoToday(this.now()) : opts.on;
+      if (!isoDate.safeParse(on).success) {
+        throw new WriteError('on must be an ISO date (YYYY-MM-DD)', 400);
+      }
+      if (opts.note !== undefined && typeof opts.note !== 'string') {
+        throw new WriteError('note must be a string', 400);
+      }
+      const atHours =
+        opts.atHours === undefined
+          ? Math.round(deriveEngineHours(this.snapshot) * 10) / 10
+          : opts.atHours;
+
+      const abs = join(this.dir, 'boat.yaml');
+      const raw = await readFile(abs, 'utf8');
+      const updated = applyEngineServiceLog(raw, id, { lastDoneHours: atHours, lastDoneDate: on as string });
+      if (updated === null) throw new WriteError('not found', 404);
+
+      // Defensive: the resulting boat.yaml must still validate (gives 400, not a crash on reload).
+      const reparsed = boatSchema.safeParse(parseYaml(updated));
+      if (!reparsed.success) throw new WriteError(formatZodError(reparsed.error), 400);
+
+      await writeFile(abs, updated, 'utf8');
+      const msg =
+        typeof opts.note === 'string' && opts.note.trim()
+          ? `log engine service ${id}: ${opts.note.trim()}`
+          : `log engine service ${id}`;
+      await this.git.commitPaths(['boat.yaml'], msg, author);
+      await this.reload();
+      await this.syncAfterWrite();
     });
   }
 
