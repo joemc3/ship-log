@@ -2,7 +2,7 @@ import type { Express, Request } from 'express';
 import type { AppContext } from '../app.js';
 import { requireAuth, requireOwner } from '../middleware.js';
 import { redactDataset } from '../redact.js';
-import { search as searchData, deriveInventoryTasks, deriveAttention } from '../../data/index.js';
+import { search as searchData, deriveInventoryTasks, deriveAttention, engineView } from '../../data/index.js';
 
 export function registerDataRoutes(app: Express, ctx: AppContext): void {
   const { store, now } = ctx;
@@ -44,4 +44,6 @@ export function registerDataRoutes(app: Express, ctx: AppContext): void {
     const clock = now();
     res.json({ attention: deriveAttention(v, clock), inventoryTasks: deriveInventoryTasks(v, clock) });
   });
+
+  app.get('/api/engine', requireAuth, (req, res) => res.json(engineView(view(req), now())));
 }

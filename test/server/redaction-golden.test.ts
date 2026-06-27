@@ -18,7 +18,7 @@ function assertNoMonetaryKey(value: unknown, path = '$'): void {
 
 const CREW_ENDPOINTS = [
   '/api/boat', '/api/trips', '/api/maintenance', '/api/inventory',
-  '/api/vendors', '/api/manuals', '/api/quickref', '/api/derived',
+  '/api/vendors', '/api/manuals', '/api/quickref', '/api/derived', '/api/engine',
   '/api/search?q=halyard', '/api/search?q=92.5',
 ];
 
