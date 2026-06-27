@@ -126,6 +126,40 @@ describe('write routes — guards', () => {
   });
 });
 
+describe('engine service log route', () => {
+  it('crew can log an engine service; it re-arms (status flips to ok) and never leaks money', async () => {
+    const crew = await loginAs('crew');
+    const res = await crew.post('/api/engine/services/fuel-filter/log').send({});
+    expect(res.status).toBe(200);
+    const fuel = res.body.services.find((s: { id: string }) => s.id === 'fuel-filter');
+    // default atHours = lifetime (~421.1); new dueAt = 421.1 + 200 → ~200 hrs left → ok
+    expect(fuel.status).toBe('ok');
+    expect('costEst' in (res.body as object)).toBe(false);
+  });
+
+  it('owner can log with an explicit reading + date', async () => {
+    const owner = await loginAs('owner');
+    const res = await owner.post('/api/engine/services/oil/log').send({ atHours: 420, on: '2026-06-01', note: 'Rotella T4' });
+    expect(res.status).toBe(200);
+    const oil = res.body.services.find((s: { id: string }) => s.id === 'oil');
+    expect(oil.lastDoneHours).toBe(420);
+    expect(oil.lastDoneDate).toBe('2026-06-01');
+  });
+
+  it('404s an unknown service and 400s a bad reading', async () => {
+    const crew = await loginAs('crew');
+    await crew.post('/api/engine/services/nope/log').send({}).expect(404);
+    await crew.post('/api/engine/services/oil/log').send({ atHours: 'lots' }).expect(400);
+  });
+
+  it('401s a guest and 403s in demo', async () => {
+    const { app } = await buildTestApp();
+    await request(app).post('/api/engine/services/oil/log').send({}).expect(401);
+    const { app: demoApp } = await buildTestApp({ demo: true });
+    await request(demoApp).post('/api/engine/services/oil/log').send({}).expect(403);
+  });
+});
+
 describe('photo upload', () => {
   it('accepts an image, compresses it, and returns a repo-relative ref', async () => {
     const agent = await loginAs('crew');
