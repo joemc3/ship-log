@@ -20,10 +20,12 @@ import type {
   WeatherPeriod,
   TideStation,
   TidePrediction,
+  Engine,
+  EngineService,
 } from '../../data/schema.js';
 import type { WithBody } from '../../data/dataset.js';
 import type { SearchHit } from '../../data/search.js';
-import type { InventoryTask, InventoryTaskKind, TaskStatus } from '../../data/derive.js';
+import type { InventoryTask, InventoryTaskKind, TaskStatus, EngineServiceStatus, EngineView } from '../../data/derive.js';
 
 export type {
   Trip,
@@ -34,11 +36,15 @@ export type {
   Manual,
   Cost,
   Boat,
+  Engine,
+  EngineService,
   WithBody,
   SearchHit,
   InventoryTask,
   InventoryTaskKind,
   TaskStatus,
+  EngineServiceStatus,
+  EngineView,
   WeatherPeriod,
   TideStation,
   TidePrediction,

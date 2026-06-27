@@ -262,6 +262,29 @@ describe('api client — writes', () => {
   });
 });
 
+describe('api — engine', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('reads the engine view and logs a service', async () => {
+    const view = { hours: { lifetime: 421.1, hoursStart: 412 }, services: [{ id: 'oil', label: 'Oil', status: 'ok' }] };
+    const fetchMock1 = mockFetchOnce(jsonResponse(view));
+    const e = await api.engine();
+    expect(e.hours.lifetime).toBe(421.1);
+    expect(fetchMock1.mock.calls[0]![0]).toBe('/api/engine');
+
+    const fetchMock2 = mockFetchOnce(jsonResponse(view));
+    const out = await api.logEngineService('oil', { atHours: 420, on: '2026-06-01', note: 'done' });
+    expect(out.services[0]!.id).toBe('oil');
+    // The second call POSTs to the service-log path.
+    const [url, init] = fetchMock2.mock.calls[0]! as [string, RequestInit];
+    expect(url).toBe('/api/engine/services/oil/log');
+    expect(init.method).toBe('POST');
+  });
+});
+
 describe('api — assistant', () => {
   afterEach(() => vi.unstubAllGlobals());
 

@@ -26,6 +26,7 @@ import type {
   User,
   AssignableRole,
   AssistantTurn,
+  EngineView,
 } from './types.js';
 
 /** A normalized API failure: HTTP status + the server's error message. */
@@ -125,6 +126,7 @@ export const api = {
   quickref: () => get<Quickref[]>('/api/quickref'),
   search: (q: string) => get<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`),
   derived: () => get<Derived>('/api/derived'),
+  engine: () => get<EngineView>('/api/engine'),
 
   // ---- owner-only reads (crew/guest => 403) ----
   costs: () => get<CostRec[]>('/api/costs'),
@@ -177,6 +179,10 @@ export const api = {
   // ---- writes: maintenance complete (crew + owner; never touches costEst) ----
   completeMaintenance: (id: string, opts: { completed?: string; note?: string } = {}) =>
     postJson<MaintenanceRec>(`/api/maintenance/${eid(id)}/complete`, opts),
+
+  // ---- writes: engine service log (owner-only) ----
+  logEngineService: (id: string, opts: { atHours?: number; on?: string; note?: string } = {}) =>
+    postJson<EngineView>(`/api/engine/services/${eid(id)}/log`, opts),
 
   // ---- writes: owner-only CRUD on the remaining collections ----
   // Route paths use the PLURAL collection dir (vendor -> /api/vendors, etc.),
