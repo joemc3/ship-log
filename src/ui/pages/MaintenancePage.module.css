@@ -113,6 +113,14 @@
   color: var(--brass-deep);
 }
 
+/* Engine service row: label+status on opposite ends, log-service button inline. */
+.engineRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 /* Real photo tile (replaces the prototype placeholder). */
 .photo {
   width: 100%;

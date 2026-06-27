@@ -38,7 +38,7 @@ import {
 import { api } from '../lib/api.js';
 import { useSession } from '../state/session.js';
 import { fmtDate, fmtDateShort, fmtMoney } from '../lib/format.js';
-import type { MaintenanceRec, VendorRec, TripRec, Derived, MaintStatus, InventoryTask } from '../lib/types.js';
+import type { MaintenanceRec, VendorRec, TripRec, Derived, MaintStatus, InventoryTask, EngineView, EngineServiceStatus } from '../lib/types.js';
 import styles from './MaintenancePage.module.css';
 
 /** Today as an ISO YYYY-MM-DD (for defaulting the "completed" date). */
@@ -692,6 +692,110 @@ function BoardColumn({
   );
 }
 
+/* ============================================================== engine card */
+
+function EngineServiceRow({ s, canLog, onLogged }: { s: EngineServiceStatus; canLog: boolean; onLogged: () => void }): JSX.Element {
+  const [open, setOpen] = useState(false);
+  const [atHours, setAtHours] = useState('');
+  const [on, setOn] = useState(todayIso());
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const tone: BadgeTone = s.status === 'overdue' ? 'overdue' : s.status === 'due' ? 'due' : 'scheduled';
+  const label = s.status === 'overdue' ? 'Overdue' : s.status === 'due' ? 'Due soon' : 'OK';
+
+  const bits: string[] = [];
+  if (s.hoursRemaining !== undefined) {
+    bits.push(s.hoursRemaining < 0 ? `${Math.abs(s.hoursRemaining).toFixed(1)} hrs overdue` : `${s.hoursRemaining.toFixed(1)} hrs left`);
+  }
+  if (s.dueDate !== undefined) {
+    bits.push(s.daysRemaining !== undefined && s.daysRemaining < 0 ? `overdue since ${fmtDateShort(s.dueDate)}` : `due ${fmtDateShort(s.dueDate)}`);
+  }
+  const interval: string[] = [];
+  if (s.everyHours !== undefined) interval.push(`every ${s.everyHours} hrs`);
+  if (s.everyMonths !== undefined) interval.push(`every ${s.everyMonths} mo`);
+
+  const submit = async (): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const opts: { atHours?: number; on?: string; note?: string } = {};
+      if (atHours.trim()) { const n = Number(atHours); if (Number.isFinite(n)) opts.atHours = n; }
+      if (on) opts.on = on;
+      if (note.trim()) opts.note = note.trim();
+      await api.logEngineService(s.id, opts);
+      onLogged();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not log this service.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={styles.engineRow} data-testid={`engine-service-${s.id}`}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="flex items-center gap-8 wrap">
+          <span style={{ fontWeight: 600, color: 'var(--ink-800)' }}>{s.label}</span>
+          {interval.length > 0 && <span className="muted tiny">{interval.join(' · ')}</span>}
+        </div>
+        {bits.length > 0 && <div className="muted tiny" style={{ marginTop: 4 }}>{bits.join(' · ')}</div>}
+        {open && (
+          <div className="card card-pad" data-testid={`engine-log-${s.id}`} style={{ marginTop: 10 }}>
+            <div className="eyebrow" style={{ marginBottom: 10 }}>Log service</div>
+            {error && <div className="muted tiny" role="alert" style={{ color: 'var(--sig-overdue)', marginBottom: 8 }}>{error}</div>}
+            <NumberField label="Engine hours now" value={atHours} onChange={setAtHours} step="0.1" min={0} hint="Leave blank to use the current lifetime hours." />
+            <DateField label="Serviced on" value={on} onChange={setOn} />
+            <TextAreaField label="Note" value={note} onChange={setNote} rows={2} placeholder="What was done (optional)" />
+            <div className="flex gap-8" style={{ marginTop: 6 }}>
+              <button type="button" className="btn btn-brass" disabled={busy} onClick={() => void submit()}>
+                <Icon name="check" s={16} />{busy ? 'Saving…' : 'Confirm'}
+              </button>
+              <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-8" style={{ flex: '0 0 auto' }}>
+        <Badge tone={tone}>{label}</Badge>
+        {canLog && !open && (
+          <button type="button" className="btn btn-ghost" style={{ padding: '5px 11px', fontSize: 12.5 }} onClick={() => setOpen(true)}>
+            <Icon name="check" s={14} />Log service
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EngineCard({ engine, canLog, onLogged }: { engine: EngineView; canLog: boolean; onLogged: () => void }): JSX.Element {
+  const since = engine.hours.lifetime - engine.hours.hoursStart;
+  return (
+    <div className="card card-pad" data-testid="engine-card" style={{ marginBottom: 22 }}>
+      <div className="flex items-center wrap" style={{ justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+        <div>
+          <div className="eyebrow">Engine</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: 'var(--ink-900)' }}>Hours &amp; service</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div className="mono" style={{ fontSize: 26, fontWeight: 600, color: 'var(--brass-deep)' }} data-testid="engine-lifetime">{engine.hours.lifetime.toFixed(1)}</div>
+          <div className="muted tiny">{engine.hours.hoursStart.toFixed(1)} baseline + {since.toFixed(1)} logged</div>
+        </div>
+      </div>
+      {engine.services.length > 0 && (
+        <div className="stack" style={{ gap: 0 }}>
+          {engine.services.map((s, i) => (
+            <div key={s.id} style={{ borderTop: i ? '1px solid var(--line)' : 'none', padding: '10px 0' }}>
+              <EngineServiceRow s={s} canLog={canLog} onLogged={onLogged} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ============================================================== page */
 
 type View = 'queue' | 'board';
@@ -714,6 +818,7 @@ export default function MaintenancePage(): JSX.Element {
   const [vendors, setVendors] = useState<VendorRec[]>([]);
   const [trips, setTrips] = useState<TripRec[]>([]);
   const [derived, setDerived] = useState<Derived | null>(null);
+  const [engine, setEngine] = useState<EngineView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>('queue');
   // Owner create/edit form mode: 'create', or an item being edited.
@@ -732,13 +837,15 @@ export default function MaintenancePage(): JSX.Element {
       api.vendors().catch(() => [] as VendorRec[]),
       // Trips power the owner's "source trip" picker; crew/guest never reach the form.
       api.trips().catch(() => [] as TripRec[]),
+      api.engine().catch(() => null),
     ])
-      .then(([m, d, v, t]) => {
+      .then(([m, d, v, t, e]) => {
         if (!alive) return;
         setItems(m);
         setDerived(d);
         setVendors(v);
         setTrips(t);
+        setEngine(e);
       })
       .catch((e: unknown) => {
         if (alive) setError(e instanceof Error ? e.message : 'Failed to load maintenance');
@@ -884,6 +991,10 @@ export default function MaintenancePage(): JSX.Element {
             Repairs from trip logs sit alongside expiring safety gear and servicing pulled in from inventory.
           </p>
         </div>
+
+        {engine && (engine.services.length > 0 || engine.hours.lifetime > 0) && (
+          <EngineCard engine={engine} canLog={canComplete} onLogged={reload} />
+        )}
 
         <div className="grid g-4" style={{ marginBottom: 22 }}>
           <div className="card card-pad" style={{ borderTop: '3px solid var(--sig-overdue)' }} data-testid="rollup-overdue">

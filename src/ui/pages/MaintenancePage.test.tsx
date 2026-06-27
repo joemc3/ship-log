@@ -29,7 +29,7 @@ import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import MaintenancePage from './MaintenancePage.js';
 import { api } from '../lib/api.js';
 import { useSession, type Session } from '../state/session.js';
-import type { MaintenanceRec, VendorRec, TripRec, Derived } from '../lib/types.js';
+import type { MaintenanceRec, VendorRec, TripRec, Derived, EngineView } from '../lib/types.js';
 
 vi.mock('../lib/api.js', () => ({
   api: {
@@ -41,6 +41,8 @@ vi.mock('../lib/api.js', () => ({
     createMaintenance: vi.fn(),
     updateMaintenance: vi.fn(),
     deleteMaintenance: vi.fn(),
+    engine: vi.fn(),
+    logEngineService: vi.fn(),
   },
   ApiError: class ApiError extends Error {},
 }));
@@ -60,6 +62,8 @@ const mockedComplete = vi.mocked(api.completeMaintenance);
 const mockedCreate = vi.mocked(api.createMaintenance);
 const mockedUpdate = vi.mocked(api.updateMaintenance);
 const mockedDelete = vi.mocked(api.deleteMaintenance);
+const mockedEngine = vi.mocked(api.engine);
+const mockedLogEngine = vi.mocked(api.logEngineService);
 const mockedUseSession = vi.mocked(useSession);
 
 function session(partial: Partial<Session>): Session {
@@ -157,6 +161,14 @@ const DERIVED: Derived = {
 
 const EMPTY_DERIVED: Derived = { attention: 0, inventoryTasks: [] };
 
+const ENGINE_VIEW = {
+  hours: { lifetime: 421.1, hoursStart: 412 },
+  services: [
+    { id: 'fuel-filter', label: 'Primary fuel filter', everyHours: 200, lastDoneHours: 205, status: 'overdue', hoursRemaining: -16.1 },
+    { id: 'oil', label: 'Engine oil & filter', everyHours: 100, everyMonths: 12, lastDoneHours: 380, status: 'ok', hoursRemaining: 58.9 },
+  ],
+} as const;
+
 /* ---- harness ---- */
 
 function LocationProbe(): JSX.Element {
@@ -191,9 +203,13 @@ describe('MaintenancePage', () => {
     mockedCreate.mockReset();
     mockedUpdate.mockReset();
     mockedDelete.mockReset();
+    mockedEngine.mockReset();
+    mockedLogEngine.mockReset();
     mockedUseSession.mockReset();
     mockedVendors.mockResolvedValue(VENDORS);
     mockedTrips.mockResolvedValue(TRIPS);
+    mockedEngine.mockResolvedValue(structuredClone(ENGINE_VIEW) as unknown as EngineView);
+    mockedLogEngine.mockResolvedValue(structuredClone(ENGINE_VIEW) as unknown as EngineView);
     // Default: owner, not demo. Individual tests override.
     mockedUseSession.mockReturnValue(OWNER);
   });
@@ -460,5 +476,38 @@ describe('MaintenancePage', () => {
       await waitFor(() => expect(screen.getAllByText('Replace raw-water impeller (overheating)').length).toBeGreaterThan(0));
       expect(screen.queryByRole('button', { name: /add item/i })).not.toBeInTheDocument();
     });
+  });
+
+  /* ============================================================ engine card */
+
+  it('shows the engine card with lifetime hours and a service status', async () => {
+    mockedUseSession.mockReturnValue(CREW);
+    mockedMaint.mockResolvedValue([]);
+    mockedDerived.mockResolvedValue(EMPTY_DERIVED);
+    renderPage();
+    expect(await screen.findByTestId('engine-card')).toBeInTheDocument();
+    expect(screen.getByTestId('engine-lifetime')).toHaveTextContent('421.1');
+    expect(within(screen.getByTestId('engine-service-fuel-filter')).getByText('Overdue')).toBeInTheDocument();
+  });
+
+  it('lets crew + owner log a service, then refreshes', async () => {
+    mockedUseSession.mockReturnValue(OWNER);
+    mockedMaint.mockResolvedValue([]);
+    mockedDerived.mockResolvedValue(EMPTY_DERIVED);
+    renderPage();
+    const row = await screen.findByTestId('engine-service-fuel-filter');
+    await userEvent.click(within(row).getByRole('button', { name: /log service/i }));
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }));
+    await waitFor(() => expect(mockedLogEngine).toHaveBeenCalledWith('fuel-filter', expect.any(Object)));
+    await waitFor(() => expect(mockedMaint).toHaveBeenCalledTimes(2)); // reload after write
+  });
+
+  it('hides the log-service control in demo', async () => {
+    mockedUseSession.mockReturnValue(DEMO);
+    mockedMaint.mockResolvedValue([]);
+    mockedDerived.mockResolvedValue(EMPTY_DERIVED);
+    renderPage();
+    await screen.findByTestId('engine-card');
+    expect(within(screen.getByTestId('engine-service-fuel-filter')).queryByRole('button', { name: /log service/i })).toBeNull();
   });
 });
