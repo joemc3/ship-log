@@ -141,6 +141,32 @@ Set `CONDITIONS_FETCH=false` to disable server-side outbound fetches entirely
 
 See `SCHEMA.md` in your data repo for the full `conditions.md` field shape.
 
+## Motor hours (engine service tracking)
+
+The **Engine card** on the Maintenance page tracks lifetime engine hours and
+reminds you when recurring services are due. Add an optional `engine` block to
+`boat.yaml` in your data repo:
+
+```yaml
+engine:
+  hoursStart: 342        # meter reading when you started logging
+  services:
+    - id: oil
+      label: "Engine oil & filter"
+      everyHours: 100
+      lastDoneHours: 320
+      lastDoneDate: 2026-03-15
+```
+
+**Lifetime hours** = `hoursStart` + the sum of every trip's `engineHrs`. Each
+service comes due/overdue by hours *or* by calendar interval, whichever arrives
+first; overdue services count toward the maintenance attention badge.
+
+- `GET /api/engine` — lifetime engine hours + per-service due/overdue status (all authed roles).
+- `POST /api/engine/services/:id/log` — crew + owner; re-arms a recurring engine service.
+
+No cost or monetary data lives in the `engine` block.
+
 ## Working with Claude Cowork
 
 Your data repo is **self-documenting for AI**: forked from `data-template/`, it

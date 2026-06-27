@@ -126,7 +126,7 @@ columns are `isoDate` (`YYYY-MM-DD`, real calendar date).
 | `title`       | string                   | no  | |
 | `durationHrs` | number                   | no  | hours underway |
 | `distanceNm`  | number                   | no  | distance in nautical miles |
-| `engineHrs`   | number                   | no  | engine hours run |
+| `engineHrs`   | number                   | no  | engine hours run this trip (summed into lifetime engine hours) |
 | `sky`         | string                   | no  | |
 | `wind`        | string                   | no  | |
 | `seas`        | string                   | no  | |
@@ -256,12 +256,42 @@ everything else is optional.
 | `hailingPort` | string                            | no  | |
 | `heroPhoto`   | string                            | no  | repo-relative path to a hero image shown on the public Welcome page, e.g. `photos/boat-hero.jpg` |
 | `specs`       | record<string, string \| number> | no  | free key/value specs (loa, beam, draft, engine, …) |
+| `engine`      | object                            | no  | engine-hours baseline + recurring service schedule (see below) |
 | `documents`   | object                            | no  | owner-only: `title` (title number), `hullId` (HIN), `registrationNumber` (state reg) |
 | `welcome`     | object                            | no  | crew/guest welcome-page content |
 
 `welcome` holds: `rules` (string[]), `whatToExpect` (string), `whatToBring`
 (string[]), `safety` (string) — all optional. **No money ever lives in
 `boat.yaml`.**
+
+#### `engine` — hours + service schedule
+
+Optional. Drives the lifetime "hours on the motor" figure and the engine-service
+reminders. No money ever lives here.
+
+| Field        | Type             | Req | Notes |
+| ------------ | ---------------- | --- | ----- |
+| `hoursStart` | number           | no  | baseline meter reading when the log began (treated as 0 when absent) |
+| `services`   | engineService[]  | no  | recurring services (oil, impeller, fuel filter, …) |
+
+Each `engineService`:
+
+| Field           | Type    | Req | Notes |
+| --------------- | ------- | --- | ----- |
+| `id`            | string  | yes | unique slug within `services` (e.g. `oil`) |
+| `label`         | string  | yes | human label, e.g. `Engine oil & filter` |
+| `everyHours`    | number  | no  | hour interval (positive) |
+| `everyMonths`   | number  | no  | calendar interval in months (positive) |
+| `lastDoneHours` | number  | no  | engine hours at the last service |
+| `lastDoneDate`  | isoDate | no  | date of the last service |
+
+**Lifetime hours** = `hoursStart` + Σ each trip's `engineHrs`. A service comes
+**due/overdue** when it passes its **hour** interval *or* its **calendar**
+interval, whichever first (the worse of the two): by hours when
+`(lastDoneHours ?? hoursStart) + everyHours ≤ lifetime`, and by date when
+`lastDoneDate + everyMonths` has arrived. A calendar interval with no
+`lastDoneDate` to anchor from is inactive until the service is first logged.
+These are computed at read time — never stored.
 
 ### quickref.yaml
 

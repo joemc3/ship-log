@@ -430,6 +430,36 @@ same change.
   canonicals, then `cp` to `demo/`) in the same change, or the doc-drift / mirror
   tests will fail.
 
+## Motor hours (engine hours + service schedule)
+
+- **Per-trip `engineHrs`** (existing, on `tripSchema`) is "engine hours run this
+  outing." **Lifetime engine hours** = `boat.engine.hoursStart` (a baseline) + Σ
+  `engineHrs`, derived by `deriveEngineHours` in `src/data/derive.ts`.
+- **`boat.yaml` `engine` block** (`engineSchema` in `src/data/schema.ts`):
+  `hoursStart` + `services[]` (each `{ id, label, everyHours?, everyMonths?,
+  lastDoneHours?, lastDoneDate? }`). It is **non-monetary** — never add a cost
+  field to it; `monetary.ts`/`redact.ts` are untouched and `redaction-golden`
+  covers `GET /api/engine`.
+- **Service reminders** are derived (`deriveEngineServiceStatuses` /
+  `deriveEngineServiceTasks`, injected `now`): a service is due/overdue by **hours
+  OR calendar, whichever first** (worse-of-two). Hour-due window is
+  `ENGINE_DUE_WINDOW_HOURS` (10); calendar reuses `DUE_WINDOW_DAYS` (30). Engine
+  tasks are folded into `deriveAttention` (the maintenance nav badge).
+- **`GET /api/engine`** (requireAuth; open in demo) serves
+  `{ hours: { lifetime, hoursStart }, services: EngineServiceStatus[] }` via
+  `engineView`. **`POST /api/engine/services/:id/log`** (crew + owner, `denyInDemo`)
+  re-arms a service: `ShipStore.logEngineService` edits `boat.yaml`
+  comment-preservingly (`applyEngineServiceLog`, the `yaml` Document API),
+  defaulting `atHours` to the current lifetime and `on` to today, and commits
+  **only** `boat.yaml`.
+- **UI:** an Engine card on the Maintenance page (`MaintenancePage.tsx`) shows
+  lifetime hours + per-service status with a crew+owner "Log service" panel
+  (hidden in demo). The schedule itself is curated in `boat.yaml` via the data
+  repo (no in-app schedule editor).
+- **Same-change rule:** when you add/rename an `engine` field, update
+  `schema.ts`, `derive.ts`, `SCHEMA.md` (`data-template/` canonical → `cp` to
+  `demo/`), and this section together.
+
 ## Docker & VPS deployment (P2)
 
 - Five artifacts (`Dockerfile`, `.dockerignore`, `docker-compose.yml`,
