@@ -1,8 +1,10 @@
 /**
  * The Purser chat (route `/assistant`). Renders the shared communal thread, sends
  * a message and streams the reply via SSE, and (owner-only) resets the thread. The
- * feature is optional: when `assistantEnabled` is false (unconfigured, or demo),
- * it shows an unavailable notice instead of the composer.
+ * feature is optional: when `assistantEnabled` is false it shows an unavailable
+ * notice instead of the composer — EXCEPT in demo mode, where the assistant is
+ * always off (`config.assistant` requires `!demo`) and a bare notice would hide
+ * the feature entirely, so we hand off to the scripted `AssistantDemo` preview.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from '../state/session.js';
@@ -10,10 +12,11 @@ import { api } from '../lib/api.js';
 import type { AssistantTurn } from '../lib/types.js';
 import { Markdown } from './Markdown.js';
 import { Icon } from '../components/Icon.js';
+import AssistantDemo from './AssistantDemo.js';
 import styles from './AssistantPage.module.css';
 
 export default function AssistantPage(): JSX.Element {
-  const { assistantEnabled, assistantLabel, isOwner } = useSession();
+  const { assistantEnabled, assistantLabel, isOwner, demo } = useSession();
   const [turns, setTurns] = useState<AssistantTurn[]>([]);
   const [draft, setDraft] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
@@ -63,6 +66,8 @@ export default function AssistantPage(): JSX.Element {
       setError(e instanceof Error ? e.message : 'Could not reset the thread.');
     }
   }, []);
+
+  if (!assistantEnabled && demo) return <AssistantDemo label={assistantLabel ?? 'Ask the Purser'} />;
 
   if (!assistantEnabled) {
     return (

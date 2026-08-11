@@ -25,8 +25,10 @@ interface NavItem {
   label: string;
   icon: IconName;
   /** Visibility predicate against the session role flags. */
-  show?: (s: { isOwner: boolean; isAuthed: boolean; assistantEnabled: boolean }) => boolean;
+  show?: (s: { isOwner: boolean; isAuthed: boolean; assistantEnabled: boolean; demo: boolean }) => boolean;
   badge?: boolean;
+  /** Static "AI" pill marking the item as the assistant feature. */
+  aiBadge?: boolean;
 }
 interface NavGroup {
   group: string;
@@ -47,7 +49,15 @@ const NAV: NavGroup[] = [
       { to: '/trips', label: 'Trip logs', icon: 'log', show: (s) => s.isAuthed },
       { to: '/maintenance', label: 'Maintenance', icon: 'wrench', show: (s) => s.isAuthed, badge: true },
       { to: '/inventory', label: 'Inventory', icon: 'box', show: (s) => s.isAuthed },
-      { to: '/assistant', label: 'Ask the Purser', icon: 'crew', show: (s) => s.isAuthed && s.assistantEnabled },
+      // Demo has no agent to connect to, but still shows the item — the page
+      // renders the scripted preview so the feature is visible in the demo.
+      {
+        to: '/assistant',
+        label: 'Ask the Purser',
+        icon: 'crew',
+        show: (s) => s.isAuthed && (s.assistantEnabled || s.demo),
+        aiBadge: true,
+      },
       { to: '/costs', label: 'Costs', icon: 'coins', show: (s) => s.isOwner },
     ],
   },
@@ -136,12 +146,12 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
   // Close the mobile drawer on navigation.
   useEffect(() => { setNavOpen(false); }, [location.pathname]);
 
-  const flags = { isOwner, isAuthed, assistantEnabled: assistantEnabled ?? false };
+  const flags = { isOwner, isAuthed, assistantEnabled: assistantEnabled ?? false, demo };
   const groups = useMemo(
     () => NAV
       .map((g) => ({ ...g, items: g.items.filter((it) => (it.show ? it.show(flags) : true)) }))
       .filter((g) => g.items.length > 0),
-    [isOwner, isAuthed, assistantEnabled],
+    [isOwner, isAuthed, assistantEnabled, demo],
   );
 
   const seg = location.pathname.split('/')[1] ?? '';
@@ -177,6 +187,7 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
                   <span className="nav-ico"><Icon name={it.icon} s={19} /></span>
                   {it.to === '/assistant' ? (assistantLabel ?? 'Ask the Purser') : it.label}
                   {it.badge && attention > 0 && <span className="nav-badge">{attention}</span>}
+                  {it.aiBadge && <span className="nav-badge">AI</span>}
                 </Link>
               ))}
             </div>

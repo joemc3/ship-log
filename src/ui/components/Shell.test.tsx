@@ -167,6 +167,18 @@ describe('Shell', () => {
     renderShell(session({ role: 'crew', isCrew: true, isAuthed: true, assistantEnabled: true, assistantLabel: 'Ask the Purser' }));
     expect(await screen.findByRole('link', { name: /ask the purser/i })).toBeInTheDocument();
   });
+
+  it('shows the Purser nav item in demo mode even though the assistant is disabled', async () => {
+    renderShell(session({ role: 'owner', isOwner: true, isAuthed: true, demo: true, assistantEnabled: false }));
+    expect(await screen.findByRole('link', { name: /purser/i })).toBeInTheDocument();
+  });
+
+  it('marks the Purser nav item with an AI badge in the same style as the maintenance count', async () => {
+    renderShell(session({ role: 'crew', isCrew: true, isAuthed: true, assistantEnabled: true }));
+    const badge = await screen.findByText('AI');
+    expect(badge).toHaveClass('nav-badge');
+    expect(screen.getByRole('link', { name: /purser/i })).toContainElement(badge);
+  });
 });
 
 /* Regression guard for the mobile drawer: the .scrim backdrop must stack BELOW

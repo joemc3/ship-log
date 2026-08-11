@@ -141,6 +141,32 @@ Set `CONDITIONS_FETCH=false` to disable server-side outbound fetches entirely
 
 See `SCHEMA.md` in your data repo for the full `conditions.md` field shape.
 
+## Motor hours (engine service tracking)
+
+The **Engine card** on the Maintenance page tracks lifetime engine hours and
+reminds you when recurring services are due. Add an optional `engine` block to
+`boat.yaml` in your data repo:
+
+```yaml
+engine:
+  hoursStart: 342        # meter reading when you started logging
+  services:
+    - id: oil
+      label: "Engine oil & filter"
+      everyHours: 100
+      lastDoneHours: 320
+      lastDoneDate: 2026-03-15
+```
+
+**Lifetime hours** = `hoursStart` + the sum of every trip's `engineHrs`. Each
+service comes due/overdue by hours *or* by calendar interval, whichever arrives
+first; overdue services count toward the maintenance attention badge.
+
+- `GET /api/engine` — lifetime engine hours + per-service due/overdue status (all authed roles).
+- `POST /api/engine/services/:id/log` — crew + owner; re-arms a recurring engine service.
+
+No cost or monetary data lives in the `engine` block.
+
 ## Working with Claude Cowork
 
 Your data repo is **self-documenting for AI**: forked from `data-template/`, it
@@ -202,6 +228,13 @@ This is entirely optional and owner-authorized.
 nav item, no route, and `/api/me` returns `assistant.enabled: false`. The app is
 fully functional without it. To run with no Purser at all, simply leave
 `ASSISTANT_URL` unset (the default).
+
+**Demo mode shows a preview instead.** The assistant is always off in demo mode
+(`config.assistant` requires a non-demo deployment), so rather than hide the
+feature entirely, `/assistant` renders a **scripted preview**: a sample
+conversation in the real chat furniture, plus a composer that replies with one
+honest canned line. It never calls the API. This is presentation only — connecting
+a real agent still requires `ASSISTANT_URL` on a non-demo deployment.
 
 **VPS secret file required even when unused.** `docker-compose.vps.yml` always
 mounts `secrets/assistant_api_key` as a Docker secret (alongside the other three).

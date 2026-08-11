@@ -52,7 +52,23 @@ describe('data routes', () => {
     const res = await crew.get('/api/derived');
     // FIXED_NOW = 2024-07-01: the enriched demo has 4 overdue/due maintenance
     // items and no inventory tasks within the 30-day window at that date.
-    expect(res.body.attention).toBe(4);
+    expect(res.body.attention).toBe(5); // was 4: + the hours-overdue fuel-filter engine service
     expect(res.body.inventoryTasks).toHaveLength(0);
+  });
+
+  it('serves the engine view (lifetime hours + per-service status) to crew', async () => {
+    const crew = await agentFor('crew');
+    const res = await crew.get('/api/engine');
+    expect(res.status).toBe(200);
+    expect(res.body.hours.lifetime).toBeCloseTo(421.1, 5);
+    expect(res.body.hours.hoursStart).toBe(412);
+    const fuel = res.body.services.find((s: { id: string }) => s.id === 'fuel-filter');
+    expect(fuel.status).toBe('overdue');
+    expect(fuel.hoursRemaining < 0).toBe(true);
+  });
+
+  it('401s a guest on /api/engine', async () => {
+    const { app } = await buildTestApp();
+    await request(app).get('/api/engine').expect(401);
   });
 });

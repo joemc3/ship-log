@@ -25,6 +25,23 @@ specs:
   sailNo: "CT2-4471"
   vhfCallSign: "WDJ5821"
   mmsi: "367123450"
+engine:
+  hoursStart: 412.0
+  services:
+    - id: oil
+      label: Engine oil & filter
+      everyHours: 100
+      everyMonths: 12
+      lastDoneHours: 380
+      lastDoneDate: 2025-08-01
+    - id: impeller
+      label: Raw-water impeller
+      everyMonths: 24
+      lastDoneDate: 2024-05-10
+    - id: fuel-filter
+      label: Primary fuel filter
+      everyHours: 200
+      lastDoneHours: 205
 welcome:
   rules:
     - Life jackets on deck under way.

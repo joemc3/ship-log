@@ -15,6 +15,10 @@ heroPhoto: ''            # repo-relative path to a hero image for the public Wel
 # has — loa, beam, draft, engine, fuelCapacity, sailNo, vhfCallSign, mmsi, …
 specs: {}
 
+engine:
+  hoursStart: 0
+  services: []
+
 # welcome: the crew/guest-facing briefing on the welcome page.
 welcome:
   rules: []              # list of house rules, one string each

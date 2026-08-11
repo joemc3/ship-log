@@ -149,4 +149,26 @@ describe('ShipStore', () => {
     const onDisk = await readFile(join(dir, 'vendors', 'v-no-repo.md'), 'utf8');
     expect(onDisk).toContain('id: v-no-repo'); // file written even with no commit
   });
+
+  it('logs an engine service: re-arms it, commits ONLY boat.yaml', async () => {
+    const dir = await makeDataRepo();
+    const store = await ShipStore.open(dir, { now: () => new Date('2024-07-01T00:00:00Z'), sync: false });
+
+    await store.logEngineService('fuel-filter', {}, AUTHOR);
+
+    const svc = store.current().boat.engine!.services!.find((s) => s.id === 'fuel-filter')!;
+    expect(svc.lastDoneHours).toBeCloseTo(421.1, 5); // default = current lifetime (rounded to 0.1)
+    expect(svc.lastDoneDate).toBe('2024-07-01');
+
+    // GOLDEN: the commit touched ONLY boat.yaml.
+    const changed = (await simpleGit(dir).raw(['show', '--name-only', '--format=', 'HEAD'])).trim();
+    expect(changed).toBe('boat.yaml');
+  });
+
+  it('404s an unknown engine service and 400s a negative atHours', async () => {
+    const dir = await makeDataRepo();
+    const store = await ShipStore.open(dir, { now: () => new Date('2024-07-01T00:00:00Z'), sync: false });
+    await expect(store.logEngineService('nope', {}, AUTHOR)).rejects.toMatchObject({ status: 404 });
+    await expect(store.logEngineService('fuel-filter', { atHours: -3 }, AUTHOR)).rejects.toMatchObject({ status: 400 });
+  });
 });

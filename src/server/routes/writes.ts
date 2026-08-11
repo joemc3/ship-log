@@ -2,10 +2,10 @@ import type { Express, Request, Response, RequestHandler } from 'express';
 import multer from 'multer';
 import type { AppContext } from '../app.js';
 import { requireAuth, requireOwner, denyInDemo } from '../middleware.js';
-import { redactRecord } from '../redact.js';
+import { redactRecord, redactDataset } from '../redact.js';
 import { WriteError } from '../store.js';
 import { PhotoError } from '../photos.js';
-import { COLLECTION_DIR, type CollectionName } from '../../data/index.js';
+import { COLLECTION_DIR, engineView, type CollectionName } from '../../data/index.js';
 
 // memoryStorage → req.file.buffer; the hard cap is defense-in-depth (the app-level
 // 25 MB / type checks live in photos.ts and yield 413/415).
@@ -40,7 +40,7 @@ function fail(res: Response, err: unknown): void {
 }
 
 export function registerWriteRoutes(app: Express, ctx: AppContext): void {
-  const { store, config } = ctx;
+  const { store, config, now } = ctx;
   const noDemo = denyInDemo(config);
 
   // ---- Trips: crew + owner ----
@@ -65,6 +65,15 @@ export function registerWriteRoutes(app: Express, ctx: AppContext): void {
     try {
       const rec = await store.completeMaintenance(req.params.id as string, { completed, note }, authorFor(req));
       res.json(redactRecord('maintenance', rec, req.viewer.role));
+    } catch (err) { fail(res, err); }
+  });
+
+  // ---- Engine service log: crew + owner (narrow op — re-arms a service; never touches cost) ----
+  app.post('/api/engine/services/:id/log', requireAuth, noDemo, async (req, res) => {
+    const { atHours, on, note } = req.body ?? {};
+    try {
+      await store.logEngineService(req.params.id as string, { atHours, on, note }, authorFor(req));
+      res.json(engineView(redactDataset(store.current(), req.viewer.role), now()));
     } catch (err) { fail(res, err); }
   });
 

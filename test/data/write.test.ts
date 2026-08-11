@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   recordPath, slugify, deriveId, toFileContents, createSchemas, parseRecord,
+  applyEngineServiceLog,
 } from '../../src/data/index.js';
 
 describe('recordPath', () => {
@@ -64,5 +65,39 @@ describe('createSchemas', () => {
     expect(createSchemas.trip.safeParse({ date: 'nope' }).success).toBe(false);
     expect(createSchemas.vendor.safeParse({ name: 'Sail Loft' }).success).toBe(true);
     expect(createSchemas.vendor.safeParse({}).success).toBe(false); // name required
+  });
+});
+
+describe('applyEngineServiceLog', () => {
+  const raw = [
+    'name: Test',
+    'engine:',
+    '  hoursStart: 412.0',
+    '  services:',
+    '    - id: oil',
+    '      label: Engine oil & filter # the main one',
+    '      everyHours: 100',
+    '    - id: fuel-filter',
+    '      label: Primary fuel filter',
+    '      everyHours: 200',
+    '',
+  ].join('\n');
+
+  it('sets lastDoneHours/lastDoneDate on the matching service and preserves comments', () => {
+    const out = applyEngineServiceLog(raw, 'oil', { lastDoneHours: 421.1, lastDoneDate: '2026-06-27' })!;
+    expect(out).toContain('lastDoneHours: 421.1');
+    expect(out).toContain('lastDoneDate: 2026-06-27');
+    expect(out).toContain('# the main one');     // comment survived
+    expect(out).toContain('id: fuel-filter');    // the other service is intact
+    // Round-trips: a date stays an unquoted string under the core schema.
+    expect(out).not.toContain("lastDoneDate: '2026-06-27'");
+  });
+
+  it('returns null for an unknown service id', () => {
+    expect(applyEngineServiceLog(raw, 'nope', { lastDoneHours: 1, lastDoneDate: '2026-06-27' })).toBeNull();
+  });
+
+  it('returns null when there is no engine.services sequence', () => {
+    expect(applyEngineServiceLog('name: Test\n', 'oil', { lastDoneHours: 1, lastDoneDate: '2026-06-27' })).toBeNull();
   });
 });
