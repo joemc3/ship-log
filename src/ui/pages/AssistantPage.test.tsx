@@ -95,6 +95,13 @@ describe('AssistantPage', () => {
     expect(screen.queryByText(/Purser/i)).toBeNull();
   });
 
+  it('renders the demo preview instead of the unavailable notice in demo mode', () => {
+    mockedUseSession.mockReturnValue(session({ demo: true, assistantEnabled: false }));
+    renderPage();
+    expect(screen.getByPlaceholderText(/message|ask/i)).toBeInTheDocument();
+    expect(screen.queryByText(/not available in this deployment/i)).toBeNull();
+  });
+
   it('attaches a photo and sends it with the message', async () => {
     const user = userEvent.setup();
     vi.mocked(api.assistantSend).mockImplementation(async (_m, onDelta) => { onDelta('I see it.'); });

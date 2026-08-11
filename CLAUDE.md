@@ -543,6 +543,20 @@ same change.
   (the `image: true` flag marks the slot). **Vision requires a vision-capable agent
   model** — a text-only model will ignore the image without error.
 
+- **Demo preview (`src/ui/pages/AssistantDemo.tsx`).** The assistant is hard-off in
+  demo (`config.assistant` requires `!demo`), so `AssistantPage` hands off to a
+  scripted preview when `!assistantEnabled && demo` (a non-demo deployment still
+  gets the plain "not available" notice). The preview reuses the real chat
+  furniture (`AssistantPage.module.css`, the `Markdown` renderer, the `.turn`
+  bubbles), renders a canned exchange grounded in the bundled `demo/` dataset, and
+  answers anything typed with one honest canned line after a short "typing" pause.
+  It **never calls `api.assistant*`** — the preview cannot light up a
+  half-configured deployment. It also does not auto-scroll on mount (the page is
+  meant to be read from the top). The sample copy quotes **no money figure**:
+  static copy is not a place to blur the owner-only cost line. The Purser nav item
+  is therefore shown when `isAuthed && (assistantEnabled || demo)`, and carries a
+  static red **`AI` pill** (the existing `.nav-badge` class, same as the
+  maintenance count) in **every** deployment where the item is visible.
 - **Optionality:** `registerAssistantRoutes` is a no-op when `ctx.assistant` is
   absent. `index.ts` only builds `AssistantDeps` when `config.assistant` is set,
   which requires both a non-demo environment and `ASSISTANT_URL`. When unset, no

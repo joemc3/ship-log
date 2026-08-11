@@ -229,6 +229,13 @@ nav item, no route, and `/api/me` returns `assistant.enabled: false`. The app is
 fully functional without it. To run with no Purser at all, simply leave
 `ASSISTANT_URL` unset (the default).
 
+**Demo mode shows a preview instead.** The assistant is always off in demo mode
+(`config.assistant` requires a non-demo deployment), so rather than hide the
+feature entirely, `/assistant` renders a **scripted preview**: a sample
+conversation in the real chat furniture, plus a composer that replies with one
+honest canned line. It never calls the API. This is presentation only — connecting
+a real agent still requires `ASSISTANT_URL` on a non-demo deployment.
+
 **VPS secret file required even when unused.** `docker-compose.vps.yml` always
 mounts `secrets/assistant_api_key` as a Docker secret (alongside the other three).
 If you are not enabling the Purser, create an empty placeholder so the secret
