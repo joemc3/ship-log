@@ -1,0 +1,78 @@
+/* Typography for a rendered record body, co-located with the Markdown renderer
+   and applied by the component itself — every page that shows a narrative gets
+   the same treatment. (Previously these rules lived in TripsPage.module.css, so
+   only the trip log was styled; manuals, conditions and the assistant fell back
+   to unstyled browser defaults.) Inherits the parchment palette tokens from the
+   shared app.css, which is never edited. */
+
+.markdown {
+  font-size: 15.5px;
+  color: var(--ink-700);
+}
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+.markdown p {
+  margin: 0 0 12px;
+  line-height: 1.64;
+}
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  margin: 18px 0 8px;
+  font-family: var(--font-display);
+  color: var(--ink-900);
+}
+.markdown ul,
+.markdown ol {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+/* A nested list hugs its parent item rather than opening a second gap. */
+.markdown li > ul,
+.markdown li > ol {
+  margin: 4px 0 0;
+}
+.markdown li {
+  margin: 4px 0;
+  line-height: 1.55;
+}
+.markdown hr {
+  margin: 18px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.markdown a {
+  color: var(--brass-deep);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.markdown code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+.markdown blockquote {
+  margin: 0 0 12px;
+  padding: 6px 14px;
+  border-left: 3px solid var(--brass);
+  background: var(--paper-2);
+  border-radius: var(--r-md);
+  color: var(--ink-600);
+  font-style: italic;
+}
+
+/* Narrow screens: pull the list indent in so a wrapped step still has room. */
+@media (max-width: 560px) {
+  .markdown ul,
+  .markdown ol {
+    padding-left: 18px;
+  }
+}

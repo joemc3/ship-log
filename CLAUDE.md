@@ -343,9 +343,9 @@ same change.
   `?focus=<id>` query opens that trip's detail directly; a `?focus=` on the list
   scroll-highlights its card. **Trips carry no cost data**, so the page is
   identical for owner/crew/guest-authed viewers and never renders a money figure.
-  Page-local styles (Markdown typography + the detail's responsive grid collapse)
-  live in a co-located **`TripsPage.module.css`** — the shared `app.css` is left
-  untouched. Every optional Trip field degrades gracefully. Tested in
+  Page-local styles (the detail's responsive grid collapse) live in a co-located
+  **`TripsPage.module.css`** — the shared `app.css` is left untouched. Markdown
+  typography is NOT page-local: it belongs to the renderer (see below). Every optional Trip field degrades gracefully. Tested in
   `TripsPage.test.tsx` against a mocked `api.trips` with demo-shaped fixtures
   (list/detail render, finding cross-link navigates, photos resolve to the
   `/photos` URL, Markdown bold renders as `<strong>`, deep-link + focus open the
@@ -402,6 +402,30 @@ same change.
   `*.test.tsx` against mocked `api`/`useSession` (login success + 401 generic +
   429; change-password success + min-8 + wrong-current; admin list + create/
   update/delete happy paths + each error status).
+
+### The Markdown renderer (`src/ui/pages/Markdown.tsx`)
+
+- Every record narrative (`body`) on every page goes through this one
+  dependency-free component. It parses a deliberately **small, safe subset** into
+  React elements — never `dangerouslySetInnerHTML`, so there is no
+  HTML-injection surface, and link hrefs stay restricted to
+  http(s)/mailto/relative/in-page.
+- The subset: paragraphs, **nestable** bullet/numbered lists, ATX headings with
+  an optional `{#anchor}` id, horizontal rules, single-line blockquotes, and
+  inline bold/italic/code/link. A **wrapped continuation line belongs to its list
+  item** — do not "fix" that by ending the list, or numbering restarts and inline
+  spans split across the wrap. Inline spans do **not** nest (no code inside bold).
+- Anything outside the subset renders as plain text, so an authoring mistake
+  never breaks the page — but it also never silently becomes markup. When you
+  widen the subset, add a case to `Markdown.test.tsx` first.
+- Its typography lives in the co-located **`Markdown.module.css`** and is applied
+  **by the component itself**, so every page that renders a body is styled; a
+  caller's `className` is applied *alongside*, not instead. Do not re-declare
+  `.markdown` rules in a page stylesheet.
+- `sections[].anchor` on a manual deep-links to a `{#anchor}` heading in that
+  manual's own body when one exists, and only otherwise falls back to appending
+  the anchor to the manual's `file` URL. Keep `SCHEMA.md` (both copies) in step
+  with that rule.
 
 ## Conditions (weather + tides)
 

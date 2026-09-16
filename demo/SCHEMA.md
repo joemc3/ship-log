@@ -231,7 +231,11 @@ lives and how to check it.
 
 **section** (each item of `sections[]`): `title` (string, required), `anchor`
 (string, optional). An `anchor` matches a `{#anchor}` heading in the Markdown
-body so the UI can deep-link.
+body so the UI can deep-link; write the heading as `## Engine start
+{#engine-start}` and the TOC row jumps to it. If the body defines no such
+heading and the manual has a `file`, the anchor is appended to that file's URL
+instead — which only jumps if the PDF itself carries a matching named
+destination, so a made-up anchor just opens the file at page 1.
 
 Manuals **may also hold the real manual text or a PDF** alongside the record:
 drop the file in `manuals/` and point `file:` at it (e.g. `manuals/engine.pdf`).
