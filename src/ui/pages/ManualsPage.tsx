@@ -22,7 +22,7 @@
  * carry NO monetary data, so this page never renders a cost field or offers a
  * cost input — the redaction contract is trivially satisfied here.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon, type IconName } from '../components/Icon.js';
 import { SectionHead, EmptyState } from '../components/atoms.js';
 import {
@@ -80,6 +80,12 @@ function ManualCard({
   const sections = man.sections ?? [];
   const note = (man.body ?? '').trim();
   const fileHref = man.file ? api.manualFileUrl(man.file) : null;
+  // Anchors the body actually defines (`## Heading {#anchor}`). A section naming
+  // one deep-links into the rendered note; only the rest fall back to the file.
+  const bodyAnchors = useMemo(
+    () => new Set(Array.from(note.matchAll(/\{#([A-Za-z0-9_-]+)\}/g), (m) => m[1]!)),
+    [note],
+  );
 
   return (
     <div className="card" data-testid="manual-card" style={{ overflow: 'hidden' }}>
@@ -141,12 +147,17 @@ function ManualCard({
         <div className={styles.drawer}>
           {note && (
             <div style={{ padding: '4px 8px 8px' }}>
-              <Markdown source={note} className="markdown" />
+              <Markdown source={note} />
             </div>
           )}
 
           {sections.map((s, i) => {
-            const href = fileHref ? `${fileHref}${s.anchor ? `#${s.anchor}` : ''}` : undefined;
+            const inPage = !!s.anchor && bodyAnchors.has(s.anchor);
+            const href = inPage
+              ? `#${s.anchor}`
+              : fileHref
+                ? `${fileHref}${s.anchor ? `#${s.anchor}` : ''}`
+                : undefined;
             const inner = (
               <>
                 <span className="mono tiny" style={{ color: 'var(--brass-deep)', width: 24, flex: '0 0 auto' }}>
@@ -157,7 +168,12 @@ function ManualCard({
               </>
             );
             return href ? (
-              <a key={`${s.title}-${i}`} className={styles.section} href={href} target="_blank" rel="noopener noreferrer">
+              <a
+                key={`${s.title}-${i}`}
+                className={styles.section}
+                href={href}
+                {...(inPage ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+              >
                 {inner}
               </a>
             ) : (

@@ -169,7 +169,7 @@ function TripDetail({
             {trip.body.trim() && (
               <div className="card card-pad">
                 <SectionHead icon="log" title="Log" />
-                <Markdown source={trip.body} className={styles.markdown} />
+                <Markdown source={trip.body} />
               </div>
             )}
 

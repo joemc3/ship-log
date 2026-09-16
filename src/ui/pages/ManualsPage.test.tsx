@@ -95,6 +95,18 @@ const RIGGING: ManualRec = {
   body: 'Field notes on the standing rigging — no scanned PDF on file.',
 };
 
+/** A file-less manual whose sections name {#anchor} headings in its own body:
+ *  the TOC must deep-link into the rendered body rather than at a PDF. */
+const CHECKLISTS: ManualRec = {
+  id: 'man-valkyrie-checklists',
+  title: 'Valkyrie Checklists',
+  sections: [
+    { title: 'Engine start', anchor: 'engine-start' },
+    { title: 'Engine shutdown', anchor: 'engine-shutdown' },
+  ],
+  body: '## Engine start {#engine-start}\n\n1. Open the fuel tank vent.\n\n## Engine shutdown {#engine-shutdown}\n\n1. Throttle back to idle.',
+};
+
 const QUICKREF: Quickref[] = [
   { id: 'qr-reef', title: 'Reefing the main', body: 'Head up, ease the halyard to the reef mark, hook the tack.' },
   { id: 'qr-mob', title: 'Man overboard', body: 'Shout MOB and point continuously. Hit the MOB button.' },
@@ -118,7 +130,7 @@ describe('ManualsPage', () => {
     mockedApi.createManual.mockReset();
     mockedApi.updateManual.mockReset();
     mockedApi.deleteManual.mockReset();
-    mockedApi.manuals.mockResolvedValue([ENGINE, RIGGING]);
+    mockedApi.manuals.mockResolvedValue([ENGINE, RIGGING, CHECKLISTS]);
     mockedApi.quickref.mockResolvedValue(QUICKREF);
   });
   afterEach(() => vi.clearAllMocks());
@@ -170,6 +182,24 @@ describe('ManualsPage', () => {
       expect(within(rigCard as HTMLElement).getByText(/Field notes on the standing rigging/)).toBeInTheDocument(),
     );
     expect(within(rigCard as HTMLElement).queryByRole('link', { name: /download|pdf|open/i })).not.toBeInTheDocument();
+  });
+
+  it('a file-less manual deep-links its sections into its own rendered body', async () => {
+    renderPage({ role: 'crew', isCrew: true, isAuthed: true });
+    await waitFor(() => expect(screen.getByText('Valkyrie Checklists')).toBeInTheDocument());
+
+    const card = screen.getByText('Valkyrie Checklists').closest('[data-testid="manual-card"]')! as HTMLElement;
+    await userEvent.click(screen.getByText('Valkyrie Checklists'));
+    await waitFor(() => expect(within(card).getByRole('link', { name: /Engine start/ })).toBeInTheDocument());
+
+    // The TOC row is an in-page link, and the heading it targets really exists.
+    const link = within(card).getByRole('link', { name: /Engine start/ }) as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('#engine-start');
+    expect(link.getAttribute('target')).toBeNull();
+    expect(card.querySelector('#engine-start')).not.toBeNull();
+
+    // The anchor syntax itself is never shown to the reader.
+    expect(card).not.toHaveTextContent('{#engine-start}');
   });
 
   it('CREW sees NO write affordances (no add/edit/delete) — and never a cost input', async () => {
