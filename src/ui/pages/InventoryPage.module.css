@@ -26,17 +26,6 @@
   border-color: var(--brass);
 }
 
-/* Real photo tile (replaces the prototype placeholder). */
-.photo {
-  width: 100%;
-  height: 96px;
-  object-fit: cover;
-  border-radius: var(--r-md);
-  border: 1px solid var(--line);
-  background: var(--parchment-2);
-  display: block;
-}
-
 /* The category/attention filter segmented control. */
 .filter {
   display: flex;

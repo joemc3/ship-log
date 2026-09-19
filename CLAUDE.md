@@ -252,6 +252,18 @@ same change.
   renders when `/api/me.demo`. The atoms in `components/atoms.tsx`
   (StatusBadge/Badge/Photo/Stat/SectionHead/WeatherRow/Card/Button/EmptyState)
   and `Icon.tsx` (Icon set + CompassRose) are typed against the real schema.
+- **Photos render through one component.** A record's `photos[]` (trips,
+  maintenance, inventory) is shown by **`components/PhotoGrid.tsx`**: 4:3
+  thumbnails in an auto-fill grid, each a button that opens
+  **`components/Lightbox.tsx`** — a portal into `document.body` showing the
+  photo with `object-fit: contain` (never cropped), prev/next that wrap, Escape
+  and arrow keys, swipe, backdrop-to-close, body scroll locked while open.
+  Refs resolve through **`lib/photoUrl.ts`**, the single helper. Do not render
+  a photo `<img>` with a fixed pixel height anywhere: a phone shoots 4:3, and a
+  fixed-height `object-fit: cover` strip crops it to an unrecognisable band —
+  that is exactly the bug this replaced. The trip list's cover image is
+  `aspect-ratio: 4 / 3` for the same reason, with `object-position: center
+  30%` to bias a portrait crop toward faces. Tested in `PhotoGrid.test.tsx`.
 - **UI degrades on redaction:** when `costEst` is absent (crew/guest), render no
   cost row/link; the Costs nav item is hidden for non-owners; never assume the
   costs collection is fetchable as crew.

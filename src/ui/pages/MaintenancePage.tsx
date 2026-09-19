@@ -25,6 +25,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Icon, type IconName } from '../components/Icon.js';
 import { StatusBadge, Stat, SectionHead, Badge, type BadgeTone } from '../components/atoms.js';
+import { PhotoGrid } from '../components/PhotoGrid.js';
 import {
   RecordForm,
   TextField,
@@ -90,10 +91,6 @@ function parseBody(body: string): ParsedBody {
 }
 
 /** photos/<name>.jpg in a record resolves to the GET /photos/:name route. */
-function photoUrl(ref: string): string {
-  return ref.startsWith('/') ? ref : `/${ref}`;
-}
-
 /* --------------------------------------------------------------- urgency meta */
 
 const STATUS_LABEL: Record<MaintStatus, string> = {
@@ -495,17 +492,7 @@ function MaintDetail({
             {item.photos && item.photos.length > 0 && (
               <div className="card card-pad">
                 <div className="eyebrow" style={{ marginBottom: 12 }}>Photos &middot; {item.photos.length}</div>
-                <div className="grid g-3" style={{ gap: 8 }}>
-                  {item.photos.map((ref) => (
-                    <img
-                      key={ref}
-                      className={styles.photo}
-                      src={photoUrl(ref)}
-                      alt={`${item.title} photo`}
-                      loading="lazy"
-                    />
-                  ))}
-                </div>
+                <PhotoGrid photos={item.photos} alt={item.title} />
               </div>
             )}
           </div>
