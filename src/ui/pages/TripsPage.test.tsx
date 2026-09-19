@@ -184,6 +184,14 @@ describe('TripsPage — detail', () => {
       // The record stores `photos/<name>.jpg`; the URL is that, root-anchored.
       expect(img?.getAttribute('src')).toBe('/photos/t-2026-05-09-passage-dawn.jpg');
     });
+    // Detail thumbnails go through PhotoGrid: each is a button, and activating
+    // one opens the full-size Lightbox on that photo.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: /open photo/i })[0]!);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.querySelector('img')?.getAttribute('src')).toBe('/photos/t-2026-05-09-passage-dawn.jpg');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('cross-links a finding to /maintenance?focus=<maintId>', async () => {
