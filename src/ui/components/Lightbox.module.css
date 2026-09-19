@@ -1,0 +1,85 @@
+/* Full-screen photo viewer. Rendered through a portal into document.body so no
+   card's overflow:hidden can clip it. Everything is sized in viewport units so
+   a portrait phone shot fills a portrait phone screen and a landscape shot fills
+   a desktop, with object-fit: contain doing the work — nothing is ever cropped
+   here, that is the whole point of opening it. */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(6, 18, 26, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Safe-area padding keeps the controls clear of a phone's notch/home bar. */
+  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
+           env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+  touch-action: pan-y;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image {
+  max-width: 100vw;
+  max-height: 100vh;
+  max-width: 100dvw;
+  max-height: 100dvh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Controls: big enough for a thumb, high-contrast on any photo. */
+.btn {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(12, 34, 48, 0.72);
+  color: var(--parchment);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+.btn:hover,
+.btn:focus-visible {
+  background: rgba(12, 34, 48, 0.95);
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+}
+
+.close { top: 14px; right: 14px; }
+.prev  { left: 10px;  top: 50%; transform: translateY(-50%); }
+.next  { right: 10px; top: 50%; transform: translateY(-50%); }
+
+.counter {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--parchment);
+  background: rgba(12, 34, 48, 0.72);
+  padding: 4px 10px;
+  border-radius: 999px;
+  pointer-events: none;
+}

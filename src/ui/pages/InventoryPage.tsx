@@ -24,6 +24,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Icon, type IconName } from '../components/Icon.js';
 import { Stat, SectionHead, Badge, type BadgeTone } from '../components/atoms.js';
+import { PhotoGrid } from '../components/PhotoGrid.js';
 import { api } from '../lib/api.js';
 import { fmtDate } from '../lib/format.js';
 import { useSession } from '../state/session.js';
@@ -42,11 +43,6 @@ import styles from './InventoryPage.module.css';
 /* ---------------------------------------------------------------- helpers */
 
 /** photos/<name>.jpg in a record resolves to the GET /photos route. */
-function photoUrl(ref: string): string {
-  if (/^https?:\/\//.test(ref)) return ref;
-  return `/${ref.replace(/^\/+/, '')}`;
-}
-
 /** Title-case a free-text level/condition for display, leaving 'ok' as 'OK'. */
 function titleCase(s: string): string {
   if (s.toLowerCase() === 'ok') return 'OK';
@@ -188,17 +184,7 @@ function InvDetail({
             {photos.length > 0 && (
               <div className="card card-pad">
                 <div className="eyebrow" style={{ marginBottom: 12 }}>Photos &middot; {photos.length}</div>
-                <div className="grid g-3" style={{ gap: 8 }}>
-                  {photos.map((ref) => (
-                    <img
-                      key={ref}
-                      className={styles.photo}
-                      src={photoUrl(ref)}
-                      alt={`${item.name} photo`}
-                      loading="lazy"
-                    />
-                  ))}
-                </div>
+                <PhotoGrid photos={photos} alt={item.name} />
               </div>
             )}
           </div>

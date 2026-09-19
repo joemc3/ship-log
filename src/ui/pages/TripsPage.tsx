@@ -29,6 +29,8 @@ import { useSession } from '../state/session.js';
 import { fmtDate, fmtDateShort } from '../lib/format.js';
 import type { TripRec } from '../lib/types.js';
 import { Markdown } from './Markdown.js';
+import { PhotoGrid } from '../components/PhotoGrid.js';
+import { photoUrl } from '../lib/photoUrl.js';
 import { TripForm } from './TripForm.js';
 import styles from './TripsPage.module.css';
 
@@ -46,13 +48,6 @@ const SEVERITY: Record<'low' | 'medium' | 'high', { label: string; cls: string }
   medium: { label: 'Medium', cls: 'due' },
   low: { label: 'Low', cls: 'scheduled' },
 };
-
-/** A trip's photo ref already carries the `photos/` prefix in the record; the
- *  /photos route serves it root-anchored. Guard against an accidental absolute. */
-function photoUrl(ref: string): string {
-  if (/^https?:\/\//.test(ref)) return ref;
-  return `/${ref.replace(/^\/+/, '')}`;
-}
 
 /* ---------------------------------------------------------------- waypoints */
 
@@ -234,17 +229,7 @@ function TripDetail({
                   <span className="eyebrow">Photos · {photos.length}</span>
                   <span className="muted tiny"><Icon name="camera" s={15} /></span>
                 </div>
-                <div className="grid g-2" style={{ gap: 8 }}>
-                  {photos.map((p) => (
-                    <img
-                      key={p}
-                      src={photoUrl(p)}
-                      alt={trip.title ?? 'Trip photo'}
-                      loading="lazy"
-                      style={{ width: '100%', height: 84, objectFit: 'cover', borderRadius: 'var(--r-md)', border: '1px solid var(--line)', display: 'block' }}
-                    />
-                  ))}
-                </div>
+                <PhotoGrid photos={photos} alt={trip.title ?? 'Trip photo'} />
               </div>
             )}
           </div>
@@ -279,10 +264,10 @@ function TripCard({ trip, onClick, highlighted }: { trip: TripRec; onClick: () =
             src={photoUrl(cover)}
             alt={trip.title ?? 'Trip photo'}
             loading="lazy"
-            style={{ width: '100%', height: 132, objectFit: 'cover', display: 'block' }}
+            style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', objectPosition: 'center 30%', display: 'block' }}
           />
         ) : (
-          <Photo h={132} label={`${photos.length} photos`} icon="camera" />
+          <Photo label={`${photos.length} photos`} icon="camera" style={{ height: 'auto', aspectRatio: '4 / 3', borderRadius: 0, border: 'none' }} />
         )}
         <div style={{ position: 'absolute', top: 12, left: 12 }}>
           <span className="badge plain" style={{ background: 'rgba(12,34,48,0.66)', color: 'var(--parchment)', borderColor: 'transparent' }}>
