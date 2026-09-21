@@ -56,6 +56,11 @@ services:
       # Behind the Pangolin tunnel (TLS terminated upstream) cookies are still
       # served over https end-to-end; keep COOKIE_SECURE true in production.
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      # Which X-Forwarded-For hop is the real client. Unset ⇒ trust none (safe
+      # for a box with nothing in front). Behind ONE reverse proxy or tunnel set
+      # 1, or the login rate limiter keys every visitor to the proxy's address.
+      # The VPS override sets this to 1.
+      TRUST_PROXY: ${TRUST_PROXY:-}
 
       # --- Optional AI Purser (off unless ASSISTANT_URL is set) ----------------
       # An OpenAI-compatible agent endpoint. Host process example below; omit to

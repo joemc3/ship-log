@@ -140,10 +140,19 @@ HTTPS reverse proxy in front. Easiest with a PAT (Part 2B).
    DATA_REPO_URL=https://github.com/joemc3/valkyrie-log.git
    DATA_REPO_TOKEN=github_pat_xxx              # the fine-grained PAT from Part 2B
    COOKIE_SECURE=true                          # you ARE serving via HTTPS (see step 3)
+   TRUST_PROXY=1                               # one reverse proxy/tunnel in front (see note below)
    # PULL_INTERVAL=300                          # optional; sync every N seconds (default 300)
    ```
    (Using an SSH key instead? Mount it and set `DATA_SSH_KEY_PATH` to the mounted
    path via a small compose override — the PAT path avoids that.)
+
+   > **`TRUST_PROXY`:** anything that sits in front of the app — Caddy, nginx,
+   > Cloudflare, a Pangolin tunnel — forwards the visitor's address in
+   > `X-Forwarded-For`. Set `TRUST_PROXY=1` so Express believes exactly that one
+   > hop. Leave it unset and every visitor looks like the proxy itself: the login
+   > rate limiter (10 tries per 15 min) becomes one shared bucket, so one person's
+   > wrong passwords lock *everyone* out. Don't set it on a box with nothing in
+   > front — then a client can forge the header and dodge the limit.
 2. Start it:
    ```bash
    docker compose up -d --build       # serves on http://<host>:8080
@@ -208,7 +217,8 @@ that stack's docker network already exists.
    COOKIE_SECURE=true
    ```
    (`SESSION_SECRET` + `OWNER_PASSWORD` come from the secret files; don't put them
-   here.)
+   here. `TRUST_PROXY=1` is already set by `docker-compose.vps.yml`, since the
+   Pangolin tunnel is exactly one hop.)
 5. **Bring it up:**
    ```bash
    docker compose -f docker-compose.yml -f docker-compose.vps.yml config   # sanity-check the merge

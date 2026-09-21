@@ -54,6 +54,30 @@ describe('auth routes', () => {
     await agent.post('/api/password').send({ currentPassword: 'wrong', newPassword: 'x'.repeat(8) }).expect(400);
   });
 
+  it('with TRUST_PROXY set, the login limiter keys on the forwarded client IP, not the proxy', async () => {
+    // The VPS shape: every visitor arrives through one tunnel, so without this
+    // they would all share a single attempt bucket. With exactly one trusted
+    // hop, Express reads the client from X-Forwarded-For and each gets their own.
+    const { app, config } = await buildTestApp({ env: { TRUST_PROXY: '1' } });
+    expect(app.get('trust proxy')).toBeTruthy();
+    config.login.max = 2;
+    const attempt = (ip: string): Promise<number> =>
+      request(app).post('/api/login').set('X-Forwarded-For', ip)
+        .send({ username: 'owner1', password: 'nope' }).then((r) => r.status);
+
+    expect(await attempt('203.0.113.10')).toBe(401);
+    expect(await attempt('203.0.113.10')).toBe(401);
+    expect(await attempt('203.0.113.10')).toBe(429); // this client is out of attempts...
+    expect(await attempt('203.0.113.20')).toBe(401); // ...and this one is not.
+  });
+
+  it('without TRUST_PROXY, X-Forwarded-For is ignored and Express keeps trust proxy off', async () => {
+    // Default stays off: a client on an un-proxied deployment must not be able
+    // to dodge the limiter by inventing a header.
+    const { app } = await buildTestApp();
+    expect(app.get('trust proxy')).toBe(false);
+  });
+
   it('rate-limits repeated login attempts', async () => {
     const { app, config } = await buildTestApp();
     config.login.max = 3;

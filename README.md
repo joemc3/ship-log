@@ -212,6 +212,7 @@ Key environment variables (full reference in the deploy checklist):
 | `USERS_PATH` | the hashed-credential store — kept on its own volume, never in the data repo. |
 | `PULL_INTERVAL` | sync cadence in seconds (default 300). |
 | `COOKIE_SECURE` | `true` behind TLS (also enables HSTS/CSP hardening); `false` for local http. |
+| `TRUST_PROXY` | which `X-Forwarded-For` hop is the real client. Unset/`false` (default) trusts none. Behind a single reverse proxy or tunnel set `1`, or the login rate limiter sees every visitor as one address and one person's failed attempts lock everyone out. Accepts a hop count, `true`, or an Express address string. |
 | `CONDITIONS_FETCH` | `true` (default) to allow the server to fetch live weather (Open-Meteo) and tides (NOAA). Set `false` to disable server-side outbound fetches (e.g. in an air-gapped deployment). |
 
 The users store (`users.json`) is deployment state, not data — keep it on its own

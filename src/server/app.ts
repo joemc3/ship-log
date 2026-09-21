@@ -104,6 +104,10 @@ export function createApp(deps: Omit<AppContext, 'now'> & { now?: () => Date }):
   const ctx: AppContext = { ...deps, now: deps.now ?? (() => new Date()) };
   const app = express();
   app.disable('x-powered-by');
+  // Which X-Forwarded-For hop is the client. Off unless TRUST_PROXY says
+  // otherwise; behind the tunnel it must be set or every visitor shares one
+  // login-rate-limit bucket (and express-rate-limit logs an error per request).
+  if (ctx.config.trustProxy !== false) app.set('trust proxy', ctx.config.trustProxy);
   app.use(hardeningHeaders(ctx.config));
   app.use(express.json());
   app.use(cookieParser());
