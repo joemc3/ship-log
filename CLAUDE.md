@@ -433,7 +433,11 @@ same change.
 - Its typography lives in the co-located **`Markdown.module.css`** and is applied
   **by the component itself**, so every page that renders a body is styled; a
   caller's `className` is applied *alongside*, not instead. Do not re-declare
-  `.markdown` rules in a page stylesheet.
+  `.markdown` rules in a page stylesheet. **Headings carry explicit sizes + weight
+  700** (`#`→h3 25px, `##`→h4 21px, `###`→h5 18px; h3/h4 get a brass rule): a
+  heading must visually outrank the bold lead-ins in the prose under it, because
+  these bodies are checklists read on a phone in glare. Never leave heading size
+  to browser defaults (that put `##` at body size and `###` below it).
 - `sections[].anchor` on a manual deep-links to a `{#anchor}` heading in that
   manual's own body when one exists, and only otherwise falls back to appending
   the anchor to the manual's `file` URL. Keep `SCHEMA.md` (both copies) in step
