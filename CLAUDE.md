@@ -47,6 +47,14 @@ same change.
 - Auth: argon2id password hashing (`@node-rs/argon2`) + stateless HMAC-signed
   HTTP-only session cookies (`SESSION_SECRET`). The users store (`users.json`) is
   deployment state in a VPS volume — **never** committed to the data repo.
+  **Usernames match leniently on login** (`UsersStore.resolve`): trimmed, then
+  exact, then case-insensitive — because a phone keyboard capitalises the first
+  letter of a text field and autocomplete appends a space, and either used to
+  lock a crew member out with the right password. The *stored* spelling is what
+  the session carries; nothing is rewritten. `add` stores trimmed and refuses a
+  name differing from an existing one only by case or spacing. Passwords stay
+  exact. The login form's username input sets `autoCapitalize="none"` /
+  `autoCorrect="off"` / `spellCheck={false}` and trims before submit.
 - **Redaction is enforced server-side by `src/server/redact.ts`** via
   `redactDataset(ds, role)`, driven by the `monetary.ts` registry (NOT the schema
   name-heuristic). Every read/search/derive route serves the role-scoped view, so

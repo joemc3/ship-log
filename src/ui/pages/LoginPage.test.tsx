@@ -82,6 +82,26 @@ describe('LoginPage — success', () => {
     await waitFor(() => expect(screen.getByTestId('home')).toBeInTheDocument());
   });
 
+  it('tells a phone keyboard not to capitalise or autocorrect the username', () => {
+    mockedUseSession.mockReturnValue(session({}));
+    renderLogin();
+    const input = screen.getByLabelText(/username/i);
+    expect(input).toHaveAttribute('autocapitalize', 'none');
+    expect(input).toHaveAttribute('autocorrect', 'off');
+    expect(input).toHaveAttribute('spellcheck', 'false');
+  });
+
+  it('trims the username before submitting (autocomplete often appends a space)', async () => {
+    const user = userEvent.setup();
+    const login = vi.fn().mockResolvedValue(undefined);
+    mockedUseSession.mockReturnValue(session({ login }));
+    renderLogin();
+    await user.type(screen.getByLabelText(/username/i), '  cap ');
+    await user.type(screen.getByLabelText(/password/i), 'secretpass');
+    await user.click(screen.getByRole('button', { name: /log in/i }));
+    await waitFor(() => expect(login).toHaveBeenCalledWith('cap', 'secretpass'));
+  });
+
   it('redirects to the attempted (from) path after a deep-link login', async () => {
     const user = userEvent.setup();
     const login = vi.fn().mockResolvedValue(undefined);
