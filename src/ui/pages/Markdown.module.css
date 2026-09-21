@@ -23,9 +23,34 @@
 .markdown h4,
 .markdown h5,
 .markdown h6 {
-  margin: 18px 0 8px;
+  margin: 26px 0 10px;
   font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.2;
   color: var(--ink-900);
+}
+/* A heading must outrank the bold lead-ins in the prose beneath it — these
+   bodies are checklists read on a phone in glare. The renderer maps `#` → h3,
+   so without explicit sizes the browser defaults put `##` at body size and
+   `###` *below* it. */
+.markdown h3 {
+  font-size: 25px;
+}
+.markdown h4 {
+  font-size: 21px;
+}
+.markdown h5 {
+  font-size: 18px;
+}
+.markdown h6 {
+  font-size: 16px;
+}
+/* The two section-level headings carry a brass rule so a section break reads
+   at a glance while scrolling. */
+.markdown h3,
+.markdown h4 {
+  padding-bottom: 5px;
+  border-bottom: 2px solid var(--brass);
 }
 .markdown ul,
 .markdown ol {
