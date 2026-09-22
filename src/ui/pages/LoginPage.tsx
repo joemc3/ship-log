@@ -43,7 +43,9 @@ export default function LoginPage(): JSX.Element {
     setBusy(true);
     setError(null);
     try {
-      await login(username, password);
+      // Trim: phone autocomplete routinely appends a space, and the server
+      // matches leniently anyway — send what the person meant.
+      await login(username.trim(), password);
       // On success the session refresh flips isAuthed; leave /login for the app,
       // returning to the originally-attempted path when there was one.
       navigate(from, { replace: true });
@@ -104,6 +106,9 @@ export default function LoginPage(): JSX.Element {
                 className="search-input"
                 type="text"
                 autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 autoFocus
                 value={username}
                 disabled={demo}

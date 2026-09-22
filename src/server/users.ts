@@ -45,16 +45,39 @@ export class UsersStore {
     return u ? { username: u.username, role: u.role } : undefined;
   }
 
+  /**
+   * Find the stored record a typed username refers to. Usernames are matched
+   * leniently on the way IN — trimmed, then exact, then case-insensitive — so a
+   * phone keyboard capitalising the first letter or autocomplete appending a
+   * space cannot lock someone out. The STORED spelling is what comes back and
+   * what the session carries; nothing is rewritten. An exact match always wins
+   * over a case-insensitive one, so legacy data that happens to hold two
+   * spellings stays deterministic.
+   */
+  private resolve(typed: string): UserRecord | undefined {
+    const wanted = typed.trim();
+    const exact = this.users.get(wanted);
+    if (exact) return exact;
+    const folded = wanted.toLowerCase();
+    for (const u of this.users.values()) {
+      if (u.username.toLowerCase() === folded) return u;
+    }
+    return undefined;
+  }
+
   async verify(username: string, password: string): Promise<PublicUser | null> {
-    const u = this.users.get(username);
+    const u = this.resolve(username);
     if (!u) return null;
     if (!(await verify(u.hash, password))) return null;
     return { username: u.username, role: u.role };
   }
 
   async add(username: string, password: string, role: UserRole): Promise<void> {
-    if (this.users.has(username)) throw new Error(`user already exists: ${username}`);
-    this.users.set(username, { username, role, hash: await hash(password) });
+    // Store trimmed, and refuse a new name that only differs from an existing
+    // one by case or spacing — lenient login would make the pair ambiguous.
+    const name = username.trim();
+    if (this.resolve(name)) throw new Error(`user already exists: ${name}`);
+    this.users.set(name, { username: name, role, hash: await hash(password) });
     await this.persist();
   }
 
