@@ -9,6 +9,10 @@ export interface Config {
   usersPath: string;
   port: number;
   cookieSecure: boolean;
+  /** Express `trust proxy` (TRUST_PROXY): false (default), a hop count, true, or
+   *  an Express address string. Decides which X-Forwarded-For entry is the client
+   *  — and therefore what the login rate limiter keys on. */
+  trustProxy: boolean | number | string;
   sessionTtlMs: number;
   login: { windowMs: number; max: number };
   ownerBootstrap?: { username: string; password: string };
@@ -32,12 +36,28 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;         // 15 minutes
 const DEFAULT_PULL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
+/**
+ * TRUST_PROXY → Express's `trust proxy` value. Off by default: trusting the
+ * wrong hop lets a client forge X-Forwarded-For and dodge per-IP limits. The
+ * VPS shape (one tunnel in front) wants exactly `1`. Booleans and hop counts
+ * are parsed; anything else (`loopback`, a subnet, a list) is handed to Express
+ * verbatim, which accepts those forms natively.
+ */
+function parseTrustProxy(raw: string | undefined): boolean | number | string {
+  const v = (raw ?? '').trim();
+  if (v === '' || v.toLowerCase() === 'false' || v === '0') return false;
+  if (v.toLowerCase() === 'true') return true;
+  if (/^\d+$/.test(v)) return Number(v);
+  return v;
+}
+
 const envSchema = z.object({
   DATA_DIR: z.string().optional(),
   SESSION_SECRET: z.string().min(1).optional(),
   USERS_PATH: z.string().optional(),
   PORT: z.coerce.number().optional(),
   COOKIE_SECURE: z.string().optional(),
+  TRUST_PROXY: z.string().optional(),
   OWNER_USERNAME: z.string().optional(),
   OWNER_PASSWORD: z.string().optional(),
   CLIENT_DIR: z.string().optional(),
@@ -151,6 +171,7 @@ export function loadConfig(
     usersPath,
     port: e.PORT ?? 8080,
     cookieSecure: e.COOKIE_SECURE?.toLowerCase() !== 'false',
+    trustProxy: parseTrustProxy(e.TRUST_PROXY),
     sessionTtlMs: SESSION_TTL_MS,
     login: { windowMs: LOGIN_WINDOW_MS, max: 10 },
     ownerBootstrap:

@@ -26,13 +26,14 @@ export interface TestApp {
  * with a seeded owner1/crew1 over a throwaway git data repo; pass { demo: true }
  * for the no-auth demo path.
  */
-export async function buildTestApp(opts: { demo?: boolean; clientDir?: string } = {}): Promise<TestApp> {
+export async function buildTestApp(opts: { demo?: boolean; clientDir?: string; env?: Record<string, string> } = {}): Promise<TestApp> {
   const usersPath = join(mkdtempSync(join(tmpdir(), 'shiplog-users-')), 'users.json');
   const dataDir = opts.demo ? DEMO : await makeDataRepo();
   const env: NodeJS.ProcessEnv = opts.demo
     ? { USERS_PATH: usersPath }
     : { DATA_DIR: dataDir, SESSION_SECRET: 'test-secret', COOKIE_SECURE: 'false', USERS_PATH: usersPath };
   if (opts.clientDir) env.CLIENT_DIR = opts.clientDir;
+  Object.assign(env, opts.env ?? {});
   const config = loadConfig(env, DEMO);
   // Demo forces sync off (the DEMO dir lives inside this app repo, which has an
   // `origin` remote once published — that must not make demo look syncable).

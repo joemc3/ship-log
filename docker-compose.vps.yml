@@ -41,6 +41,11 @@ services:
       DATA_SSH_KEY_PATH: /run/secrets/data_deploy_key
       # Optional: agent API key as a Docker secret (resolved by config.ts).
       ASSISTANT_API_KEY_FILE: /run/secrets/assistant_api_key
+      # The Pangolin tunnel is exactly one hop in front of the app, and it is the
+      # ONLY ingress (no host ports). Trust that one hop so X-Forwarded-For gives
+      # the real visitor: the login rate limiter then keys per person instead of
+      # putting everyone in the tunnel's single bucket.
+      TRUST_PROXY: "1"
 
     secrets:
       - session_secret

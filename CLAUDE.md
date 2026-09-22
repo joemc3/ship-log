@@ -70,6 +70,15 @@ same change.
   (`COOKIE_SECURE=true` and non-demo) it adds **HSTS** + the CSP
   `upgrade-insecure-requests` directive; on plain http / demo both are omitted so
   local dev is never pinned to https. See the "Sync & deploy (P2)" section.
+- **`TRUST_PROXY` → Express `trust proxy`** (`config.trustProxy`, default `false`).
+  It decides which `X-Forwarded-For` hop is the client, and therefore what the
+  login rate limiter (`loginLimiter`, 10 per 15 min per IP) keys on. Off, a
+  proxied deployment collapses every visitor onto the proxy's address — one
+  shared attempt bucket, and express-rate-limit raises
+  `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR` on each request. The VPS shape sets `1`
+  (one tunnel hop). Never default it on: on an un-proxied box a client could
+  forge the header and dodge the limit. Tested in `config.test.ts` (parsing)
+  and `auth.test.ts` (separate buckets per forwarded IP).
 
 ## Write layer (P1c)
 
@@ -555,7 +564,9 @@ same change.
 - **Behind TLS:** the Pangolin tunnel terminates TLS upstream, so production runs
   with `COOKIE_SECURE=true` — which is also what flips on HSTS + the CSP
   `upgrade-insecure-requests` (see "Hardening & config invariants"). Keep
-  `COOKIE_SECURE=true` in the VPS shape.
+  `COOKIE_SECURE=true` in the VPS shape. The same override sets `TRUST_PROXY=1`:
+  the tunnel is exactly one hop, and without it the login limiter treats every
+  visitor as the tunnel's address.
 - **First deploy** (fork app → private `<boat>-log` data repo → deploy key / PAT →
   secrets → reconcile pinned IP → `compose up` → log in as owner) is walked through
   step-by-step in `README.md` ("VPS deploy walkthrough" + "Credential modes").

@@ -83,6 +83,22 @@ describe('loadConfig', () => {
     expect(loadConfig({ DATA_DIR: '/d', SESSION_SECRET: 's', PULL_INTERVAL: '30' }, DEMO).pullIntervalMs).toBe(30_000);
   });
 
+  it('defaults TRUST_PROXY off and parses hops, booleans, and Express strings', () => {
+    const base = { DATA_DIR: '/d', SESSION_SECRET: 's' };
+    expect(loadConfig(base, DEMO).trustProxy).toBe(false);
+    expect(loadConfig({ ...base, TRUST_PROXY: '' }, DEMO).trustProxy).toBe(false);
+    expect(loadConfig({ ...base, TRUST_PROXY: 'false' }, DEMO).trustProxy).toBe(false);
+    expect(loadConfig({ ...base, TRUST_PROXY: '0' }, DEMO).trustProxy).toBe(false);
+    // A hop count — the VPS shape: exactly one trusted proxy (the tunnel).
+    expect(loadConfig({ ...base, TRUST_PROXY: '1' }, DEMO).trustProxy).toBe(1);
+    expect(loadConfig({ ...base, TRUST_PROXY: '2' }, DEMO).trustProxy).toBe(2);
+    // Trust-everything is allowed but is the operator's explicit choice.
+    expect(loadConfig({ ...base, TRUST_PROXY: 'true' }, DEMO).trustProxy).toBe(true);
+    expect(loadConfig({ ...base, TRUST_PROXY: 'TRUE' }, DEMO).trustProxy).toBe(true);
+    // Anything else is handed to Express verbatim (subnets, 'loopback', lists).
+    expect(loadConfig({ ...base, TRUST_PROXY: 'loopback, 172.18.0.0/16' }, DEMO).trustProxy).toBe('loopback, 172.18.0.0/16');
+  });
+
   describe('users-store-volume invariant (USERS_PATH must stay OUTSIDE DATA_DIR)', () => {
     it('throws when USERS_PATH resolves inside DATA_DIR', () => {
       expect(() =>
