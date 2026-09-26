@@ -54,7 +54,13 @@ same change.
   the session carries; nothing is rewritten. `add` stores trimmed and refuses a
   name differing from an existing one only by case or spacing. Passwords stay
   exact. The login form's username input sets `autoCapitalize="none"` /
-  `autoCorrect="off"` / `spellCheck={false}` and trims before submit.
+  `autoCorrect="off"` / `spellCheck={false}` and trims before submit. The
+  **Admin page's** username, temporary-password and reset-password inputs set
+  the same three attributes (they are plain `type="text"` so the owner can read
+  the password back) and **refuse** a password with a leading/trailing space
+  rather than trim it — a phone once stored a crew member's temp password with
+  a suggestion-appended trailing space, and exact matching then locked them out.
+  Any new password input that is not `type="password"` needs the same.
 - **Redaction is enforced server-side by `src/server/redact.ts`** via
   `redactDataset(ds, role)`, driven by the `monetary.ts` registry (NOT the schema
   name-heuristic). Every read/search/derive route serves the role-scoped view, so
@@ -422,8 +428,9 @@ same change.
   403) drives the four user endpoints: `GET /api/users` (the table),
   `POST /api/users` (add: username + **temporary** password the owner shares +
   role), `PUT /api/users/:username` (set role and/or **reset** password, via a
-  modal), `DELETE /api/users/:username` (a confirm-modal-guarded remove). The
-  server owns the invariants and they read straight back: **409** (`cannot
+  modal), `DELETE /api/users/:username` (a confirm-modal-guarded remove). Its
+  inputs switch off phone-keyboard editing and it refuses an edge-space password
+  (see the login-matching note under "Server layer"). The server owns the invariants and they read straight back: **409** (`cannot
   demote/delete the last owner`, duplicate username), **404** (`no such user`),
   **400** (validation). After every successful mutation the list is **re-fetched**
   so the table reflects the authoritative server state. All three pages reuse the

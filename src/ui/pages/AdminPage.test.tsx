@@ -220,3 +220,62 @@ describe('AdminPage — delete', () => {
     expect(await screen.findByText(/no such user/i)).toBeInTheDocument();
   });
 });
+
+// A phone keyboard edits a plain text field on the way in: it capitalises the
+// first letter, autocorrects words, and accepting a suggestion appends a space.
+// The server hashes passwords exactly as sent, so a temporary password typed on
+// a phone was stored as "Lila2021! " and the crew member could never sign in
+// with "Lila2021!". These fields must switch the keyboard's editing off, and a
+// password with leading/trailing whitespace is refused rather than stored.
+function expectNoKeyboardEditing(input: HTMLElement): void {
+  expect(input).toHaveAttribute('autocapitalize', 'none');
+  expect(input).toHaveAttribute('autocorrect', 'off');
+  expect(input).toHaveAttribute('spellcheck', 'false');
+}
+
+describe('AdminPage — phone keyboards', () => {
+  it('turns off autocapitalise/autocorrect/spellcheck on the new-account fields', async () => {
+    renderAdmin();
+    await waitFor(() => expect(screen.getByText('cap')).toBeInTheDocument());
+    const form = screen.getByTestId('create-user');
+    expectNoKeyboardEditing(within(form).getByLabelText(/username/i));
+    expectNoKeyboardEditing(within(form).getByLabelText(/temporary password/i));
+  });
+
+  it('turns off autocapitalise/autocorrect/spellcheck on the reset-password field', async () => {
+    const user = userEvent.setup();
+    renderAdmin();
+    await waitFor(() => expect(screen.getByText('mate')).toBeInTheDocument());
+    await user.click(within(rowFor('mate')).getByRole('button', { name: /reset password/i }));
+    const modal = await screen.findByRole('dialog');
+    expectNoKeyboardEditing(within(modal).getByLabelText(/new password/i));
+  });
+
+  it('refuses a temporary password that ends in a space instead of storing it', async () => {
+    const user = userEvent.setup();
+    renderAdmin();
+    await waitFor(() => expect(screen.getByText('cap')).toBeInTheDocument());
+
+    const form = screen.getByTestId('create-user');
+    await user.type(within(form).getByLabelText(/username/i), 'Tyler');
+    await user.type(within(form).getByLabelText(/temporary password/i), 'Lila2021! ');
+    await user.click(within(form).getByRole('button', { name: /add user|create|invite/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/space/i);
+    expect(mockedCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses a reset password that starts with a space instead of storing it', async () => {
+    const user = userEvent.setup();
+    renderAdmin();
+    await waitFor(() => expect(screen.getByText('mate')).toBeInTheDocument());
+
+    await user.click(within(rowFor('mate')).getByRole('button', { name: /reset password/i }));
+    const modal = await screen.findByRole('dialog');
+    await user.type(within(modal).getByLabelText(/new password/i), ' freshpass1');
+    await user.click(within(modal).getByRole('button', { name: /reset|save|confirm/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/space/i);
+    expect(mockedUpdate).not.toHaveBeenCalled();
+  });
+});
