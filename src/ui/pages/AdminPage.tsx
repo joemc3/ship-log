@@ -28,6 +28,19 @@ const ROLE_OPTIONS: { value: AssignableRole; label: string }[] = [
 
 const MIN_PW = 8;
 
+/**
+ * A phone keyboard edits a plain text field: it capitalises the first letter,
+ * autocorrects words, and accepting a suggestion appends a space. These fields
+ * are plain text on purpose (the owner reads the temporary password back to
+ * share it), so switch that editing off — the server hashes the password
+ * exactly as sent, and a silently altered one locks the crew member out.
+ */
+const NO_KEYBOARD_EDITS = { autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false } as const;
+
+/** Passwords are matched exactly, so an edge space is refused, never trimmed. */
+const EDGE_SPACE = 'The password starts or ends with a space — remove it (a phone keyboard often adds one).';
+const hasEdgeSpace = (pw: string): boolean => pw !== pw.trim();
+
 /** Read an ApiError's message (the server's 400/404/409 text) or a generic line. */
 function msg(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
@@ -258,6 +271,10 @@ function CreateUser({
       setError(`The temporary password must be at least ${MIN_PW} characters.`);
       return;
     }
+    if (hasEdgeSpace(password)) {
+      setError(EDGE_SPACE);
+      return;
+    }
     setBusy(true);
     try {
       await api.createUser(username.trim(), password, role);
@@ -295,6 +312,7 @@ function CreateUser({
             id="new-username"
             type="text"
             autoComplete="off"
+            {...NO_KEYBOARD_EDITS}
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             style={inputStyle}
@@ -306,6 +324,7 @@ function CreateUser({
             id="new-password"
             type="text"
             autoComplete="off"
+            {...NO_KEYBOARD_EDITS}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             style={inputStyle}
@@ -356,6 +375,10 @@ function ResetPasswordModal({
       setError(`The new password must be at least ${MIN_PW} characters.`);
       return;
     }
+    if (hasEdgeSpace(password)) {
+      setError(EDGE_SPACE);
+      return;
+    }
     setBusy(true);
     try {
       await onSubmit(password);
@@ -401,6 +424,7 @@ function ResetPasswordModal({
             id="reset-password"
             type="text"
             autoComplete="off"
+            {...NO_KEYBOARD_EDITS}
             autoFocus
             value={password}
             onChange={(e) => setPassword(e.target.value)}
