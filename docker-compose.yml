@@ -66,9 +66,11 @@ services:
       # An OpenAI-compatible agent endpoint. Host process example below; omit to
       # disable the feature entirely (no nav item, routes return 404).
       ASSISTANT_URL: ${ASSISTANT_URL:-}
-      # Optional bearer token for the agent endpoint (or ASSISTANT_API_KEY_FILE).
+      # The AGENT's API-server key (or ASSISTANT_API_KEY_FILE) — not the LLM
+      # provider's key, which lives only in the agent's own config.
       ASSISTANT_API_KEY: ${ASSISTANT_API_KEY:-}
-      # The model string sent in the request (agent may treat it as a passthrough).
+      # Leave unset with Hermes (it runs the model its own config names). Only for
+      # a generic OpenAI-compatible server that picks the model by name.
       ASSISTANT_MODEL: ${ASSISTANT_MODEL:-}
       # UI label for the nav item + page (default "Ask the Purser").
       ASSISTANT_LABEL: ${ASSISTANT_LABEL:-}

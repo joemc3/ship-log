@@ -581,9 +581,14 @@ same change.
 ## Optional assistant (Purser) layer
 
 - **Three units:**
-  - `src/server/assistant.ts` — the OpenAI-compatible streaming client. Sends the
-    chat history + system message to the agent via `POST /v1/chat/completions`
-    (streaming) and pipes the SSE response back to the browser. Injects
+  - `src/server/assistant.ts` — the OpenAI-compatible streaming client. Sends
+    **only the current user message** + the speaker system message to the agent
+    via `POST /v1/chat/completions` (streaming) and pipes the SSE response back to
+    the browser. Earlier turns are NOT resent: the agent holds the conversation,
+    keyed by the session id, so `ASSISTANT_URL` must point at the agent (Hermes),
+    never at an LLM provider directly — a bare model API forgets every turn and
+    has no data-repo tools. The model/provider and its key are agent-side config;
+    `ASSISTANT_API_KEY` is the agent's own API-server key. Injects
     `X-Hermes-Session-Id` (shared conversation id, `ASSISTANT_SESSION_ID`) and
     `X-Hermes-Session-Key` (the authenticated username, per-crew memory) as headers
     derived from `req.viewer` — never from the client.
@@ -653,7 +658,11 @@ same change.
   `config.ts` (add to `SECRET_FILE_VARS` if secret-bearing), `docker-compose.yml`
   (new env line in the Purser block), `README.md` (the config table), and this
   section together. The `_FILE` indirection pattern for secret-bearing vars is
-  described in "Hardening & config invariants" above.
+  described in "Hardening & config invariants" above. Default it with `||`, not
+  `??`: the compose `${VAR:-}` passthrough hands the container `""` when `.env`
+  omits the var, and `??` kept that blank — an empty `ASSISTANT_SESSION_ID` made
+  Hermes start a fresh, memoryless session on every message (tested in
+  `config.test.ts`).
 
 ## Data repos & Cowork enablement (P3)
 

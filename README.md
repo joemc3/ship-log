@@ -250,23 +250,50 @@ the same host, another container, or a nearby machine. Any OpenAI-compatible
 server works; [Nous Research Hermes](https://huggingface.co/NousResearch) agents
 with the Hermes-style API server are one example.
 
-**Configuration.** Set these variables in your `.env` or compose override:
+**Who configures what.** Ship's Log and the agent are two programs with two
+separate configs:
+
+| | Ship's Log (`.env`) | The agent (e.g. Hermes's own config) |
+|---|---|---|
+| Owns | Where the agent is, and the key to its door | Which LLM and provider, the provider's API key, tools, skills, its clone of the data repo, conversation memory |
+| Changes when | You move the agent or rotate its key | You switch models (DeepSeek → Claude, …) or teach it something |
+
+`ASSISTANT_API_KEY` is the **agent's** key — the password its API server
+demands — **not** your LLM provider's key (Anthropic, OpenAI, OpenRouter, …).
+That key lives only in the agent. Switching models is an agent-side change; the
+Ship's Log `.env` stays the same.
+
+**Point `ASSISTANT_URL` at the agent, never at an LLM provider directly.** The
+app sends only the current message plus who is speaking; it does not send the
+earlier turns, the dataset, or any tools. Memory (keyed by the session id), the
+data-repo tools that write trips and maintenance items, and the commit/push all
+live in the agent. Aimed at a bare model API such as `https://api.anthropic.com`,
+the Purser still answers, but it forgets every previous message and cannot
+publish anything.
+
+**Configuration.** With a Hermes agent on the Docker host, this is all `.env`
+needs (8642 is Hermes's API-server port; use yours):
+
+```
+ASSISTANT_URL=http://host.docker.internal:8642
+ASSISTANT_API_KEY=<the API key from your agent's API-server config>
+```
+
+The full set, all read by `src/server/config.ts`. A variable set to an empty
+value counts as unset, so a blank line in `.env` falls back to the default:
 
 | Variable | Purpose |
 |---|---|
-| `ASSISTANT_URL` | Base URL of the agent (e.g. `http://host.docker.internal:11434`). Setting this enables the feature. |
-| `ASSISTANT_API_KEY` | Bearer token for the agent, if it requires one. Or supply `ASSISTANT_API_KEY_FILE` (VPS secret form). |
-| `ASSISTANT_MODEL` | Model string forwarded to the agent (the agent may treat it as a passthrough). |
-| `ASSISTANT_LABEL` | UI label for the nav item and page (default: `Ask the Purser`). |
-| `ASSISTANT_SESSION_ID` | Shared conversation id for the communal thread (default: `shiplog`). |
+| `ASSISTANT_URL` | **Required.** Base URL of the agent. Setting this enables the feature. |
+| `ASSISTANT_API_KEY` | Bearer token the agent's API server requires. Or supply `ASSISTANT_API_KEY_FILE` (VPS secret form). |
+| `ASSISTANT_LABEL` | Optional. UI label for the nav item and page (default: `Ask the Purser`). |
+| `ASSISTANT_SESSION_ID` | Optional. Shared conversation id for the communal thread (default: `shiplog`). |
+| `ASSISTANT_MODEL` | **Leave unset with Hermes**, which ignores it and runs whatever model its own config names (it only echoes the string back). Only for a generic OpenAI-compatible server that picks the model by name (default: `default`). |
 
 **Container→host networking.** When the agent runs on the Docker host (the common
 case), the app container reaches it via `host.docker.internal`. The compose file
-already wires `extra_hosts: host.docker.internal:host-gateway` for you. Set:
-
-```
-ASSISTANT_URL=http://host.docker.internal:<port>
-```
+already wires `extra_hosts: host.docker.internal:host-gateway` for you, which is
+why `ASSISTANT_URL` above uses that hostname.
 
 **Security.** Keep the agent port reachable by the container but **not publicly
 exposed** — block it at the host firewall. The Pangolin tunnel only fronts Ship's

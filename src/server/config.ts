@@ -154,13 +154,15 @@ export function loadConfig(
         `store must stay out of the data git repo. Point USERS_PATH at a separate volume.`,
     );
   }
+  // `||`, not `??`: compose passes an unset `${VAR:-}` through as "", and a blank
+  // session id made Hermes open a fresh session (no memory) on every message.
   const assistant = !demo && e.ASSISTANT_URL
     ? {
         url: e.ASSISTANT_URL,
-        apiKey: e.ASSISTANT_API_KEY,
-        model: e.ASSISTANT_MODEL ?? 'default',
-        label: e.ASSISTANT_LABEL ?? 'Ask the Purser',
-        sessionId: e.ASSISTANT_SESSION_ID ?? 'shiplog',
+        apiKey: e.ASSISTANT_API_KEY || undefined,
+        model: e.ASSISTANT_MODEL || 'default',
+        label: e.ASSISTANT_LABEL || 'Ask the Purser',
+        sessionId: e.ASSISTANT_SESSION_ID || 'shiplog',
         chatLogPath: join(dirname(usersPath), 'assistant-chatlog.json'),
       }
     : undefined;

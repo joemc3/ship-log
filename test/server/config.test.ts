@@ -225,6 +225,17 @@ describe('config — assistant', () => {
     expect(c.assistant?.apiKey).toBe('sekret');
   });
 
+  it('treats blank optional vars as unset (compose passes `${VAR:-}` as "")', () => {
+    const c = loadConfig(
+      { ...base, ASSISTANT_URL: 'http://a', ASSISTANT_API_KEY: '', ASSISTANT_MODEL: '', ASSISTANT_LABEL: '', ASSISTANT_SESSION_ID: '' },
+      DEMO,
+    );
+    expect(c.assistant?.apiKey).toBeUndefined();
+    expect(c.assistant?.model).toBe('default');
+    expect(c.assistant?.label).toBe('Ask the Purser');
+    expect(c.assistant?.sessionId).toBe('shiplog');
+  });
+
   it('is disabled in demo even if ASSISTANT_URL is set', () => {
     const c = loadConfig({ ASSISTANT_URL: 'http://a' }, DEMO); // no DATA_DIR/REPO ⇒ demo
     expect(c.demo).toBe(true);
