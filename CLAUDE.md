@@ -551,18 +551,25 @@ same change.
   `DATA_REPO_URL`/`DATA_DIR` ⇒ demo mode (sync disabled).
 - **`docker-compose.vps.yml` override:** `ports: !reset []` (publish nothing —
   ingress is the Pangolin tunnel only), attach to the **external `pangolin`**
-  network at a **pinned static IP**, and source `SESSION_SECRET` + owner-bootstrap
+  network (**no static IP** — see the next bullet), and source `SESSION_SECRET` + owner-bootstrap
   password + the git deploy key as Docker **secrets**. The secret env uses the
   `*_FILE` indirection (`SESSION_SECRET_FILE`, `OWNER_PASSWORD_FILE` →
   `/run/secrets/*`), which `config.ts` resolves (see "Hardening & config
-  invariants"); `DATA_SSH_KEY_PATH` points at the mounted deploy key. The pinned IP
-  (`172.18.0.7`) is **PROVISIONAL** — reconcile with Joe's Gerbil IPAM/subnet
-  before deploy. Validate both files with `docker compose -f docker-compose.yml
+  invariants"); `DATA_SSH_KEY_PATH` points at the mounted deploy key. Validate both files with `docker compose -f docker-compose.yml
   [-f docker-compose.vps.yml] config`.
+- **Never pin an `ipv4_address` on the `pangolin` network, and never target the
+  tunnel at an IP.** The Pangolin resource targets the container **by name**
+  (`http://<project>-shiplog-1:8080` or the service alias `http://shiplog:8080`;
+  `http://shiplog-demo:8080` for the demo). A static IP does not reserve its
+  slot: after a host reboot another container on the shared network can be
+  given the address first, the pinned container then fails to start ("Address
+  already in use"), and `restart: unless-stopped` does not retry a failed
+  start. Both compose files used to pin one (`.7` / `.22`), and that took
+  valkyrie.2524.info down on 2026-11-12 until it was started by hand.
 - **`docker-compose.demo.yml` (standalone, the public demo):** runs the app in
   pure **demo mode** (NO `DATA_DIR`/`DATA_REPO_URL` ⇒ read-only, no auth, sync off,
-  no secrets, no volumes) on the external `pangolin` network at its OWN pinned IP
-  (`172.18.0.22`, distinct from the real deploy's `172.18.0.7`). It is **not** an
+  no secrets, no volumes) on the external `pangolin` network, reached by its fixed
+  container name `shiplog-demo`. It is **not** an
   override of the base file — run it alone (`docker compose -f docker-compose.demo.yml
   up -d --build`); layering it over `docker-compose.yml` would re-introduce the
   base's default `DATA_DIR=/app/data` and crash-loop on the missing
@@ -575,8 +582,8 @@ same change.
   the tunnel is exactly one hop, and without it the login limiter treats every
   visitor as the tunnel's address.
 - **First deploy** (fork app → private `<boat>-log` data repo → deploy key / PAT →
-  secrets → reconcile pinned IP → `compose up` → log in as owner) is walked through
-  step-by-step in `README.md` ("VPS deploy walkthrough" + "Credential modes").
+  secrets → `compose up` → point the tunnel at the container name → log in as
+  owner) is walked through step-by-step in `docs/DEPLOY-CHECKLIST.md`.
 
 ## Optional assistant (Purser) layer
 

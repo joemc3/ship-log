@@ -7,8 +7,8 @@
 #   1. Publishes NO host ports — the only ingress is the Pangolin tunnel. The
 #      no-exposed-ports security property is the whole point of the VPS shape.
 #   2. Attaches the service to the EXTERNAL `pangolin` network (managed by the
-#      tunnel stack) with a pinned high static IP so Gerbil's IPAM does not hand
-#      the slot to another container.
+#      tunnel stack). Docker assigns the address; the tunnel reaches the
+#      container BY NAME (see the networks block below), never by IP.
 #   3. Sources SESSION_SECRET + the owner bootstrap from Docker secrets, and
 #      mounts the git deploy key as a secret file (DATA_SSH_KEY_PATH points at it).
 #
@@ -23,13 +23,17 @@ services:
     ports: !reset []
 
     networks:
-      pangolin:
-        # PROVISIONAL IP — 172.18.0.22 is a placeholder in the assumed pangolin
-        # subnet (172.18.0.0/16). It MUST be reconciled with Joe's Gerbil IPAM /
-        # actual subnet before deploy: confirm the network's subnet, pick a high
-        # static address outside the DHCP range, and update both this value and
-        # the Pangolin/Gerbil target so the tunnel routes to the right container.
-        ipv4_address: 172.18.0.7
+      # NO `ipv4_address` here, on purpose. Point the Pangolin resource at the
+      # container by NAME — http://<project>-shiplog-1:8080 (e.g.
+      # http://ship-log-shiplog-1:8080), or the service alias http://shiplog:8080
+      # — and let Docker hand out the address.
+      #
+      # A static IP does not reserve its slot: after a host reboot any other
+      # container on this network can be given that address first, and this one
+      # then fails to start ("Address already in use"). `restart: unless-stopped`
+      # does not retry a failed start, so the site stays down until someone
+      # starts it by hand. That exact outage happened on 2026-11-12.
+      pangolin: {}
 
     environment:
       # Override the env-interpolated values from the base with the secret-file
