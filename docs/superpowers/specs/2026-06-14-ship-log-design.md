@@ -299,6 +299,9 @@ date (the prototype hardcoded 2024-08-22).
 - `docker-compose.yml` (base) + `docker-compose.vps.yml` (override): `ports:
   !override []` (nothing exposed), join the external `pangolin` network, pin a
   high IP (e.g. `172.18.0.22`) to avoid Gerbil's IPAM slot.
+  **Superseded 2026-11-13:** the pin was removed. A static IP does not reserve
+  its slot, and it caused a boot-time outage on 2026-11-12; the tunnel targets
+  the container by name instead (see `docker-compose.vps.yml`).
 - **Pangolin is a plain tunnel (no SSO)** — the app is reachable publicly through
   it and gates itself. The no-exposed-ports security property is unchanged.
 - Secrets/volumes: `SESSION_SECRET` and owner-bootstrap (`OWNER_USERNAME`/

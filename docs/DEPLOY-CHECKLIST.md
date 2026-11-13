@@ -185,23 +185,12 @@ that stack's docker network already exists.
    literally named `pangolin`. Confirm yours:
    ```bash
    docker network ls                        # find the one your Pangolin/Traefik stack uses
-   docker network inspect <that-network>    # note its Subnet, e.g. 172.18.0.0/16
+   docker network inspect <that-network>    # confirm it exists and is the tunnel's
    ```
    If it isn't named `pangolin`, edit `docker-compose.vps.yml` and change the network
    name in **both** the `services.shiplog.networks:` block and the top-level
    `networks:` block to match.
-2. **Pin a free IP in that subnet.** The override pins `172.18.0.22` as a placeholder.
-   Set it to a free, high address inside *your* subnet (outside Gerbil's DHCP range):
-   ```yaml
-   # docker-compose.vps.yml
-   services:
-     shiplog:
-       networks:
-         pangolin:
-           ipv4_address: 172.18.0.22    # ← your free static IP
-   ```
-   **Remember this IP — it's what Pangolin will target.**
-3. **Create the secrets** the override reads (in `~/ship-log/secrets/`):
+2. **Create the secrets** the override reads (in `~/ship-log/secrets/`):
    ```bash
    cd ~/ship-log && mkdir -p secrets
    openssl rand -hex 32            > secrets/session_secret    # SESSION_SECRET
@@ -209,7 +198,7 @@ that stack's docker network already exists.
    cp ./deploy_key                   secrets/data_deploy_key     # SSH mode (Part 2A): the PRIVATE key
    chmod 600 secrets/*
    ```
-4. **Set the non-secret env** in `~/ship-log/.env`:
+3. **Set the non-secret env** in `~/ship-log/.env`:
    ```bash
    OWNER_USERNAME=joe
    DATA_REPO_URL=git@github.com:joemc3/valkyrie-log.git    # SSH form (matches the deploy key)
@@ -219,19 +208,19 @@ that stack's docker network already exists.
    (`SESSION_SECRET` + `OWNER_PASSWORD` come from the secret files; don't put them
    here. `TRUST_PROXY=1` is already set by `docker-compose.vps.yml`, since the
    Pangolin tunnel is exactly one hop.)
-5. **Bring it up:**
+4. **Bring it up:**
    ```bash
    docker compose -f docker-compose.yml -f docker-compose.vps.yml config   # sanity-check the merge
    docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
    docker compose logs -f shiplog
    ```
-6. **Create the Pangolin resource** pointing at the container — same as your other
-   tunneled services, using these values:
+5. **Create the Pangolin resource** pointing at the container **by name** — same as
+   your other tunneled services, using these values:
 
    | Pangolin setting | Value | Source |
    |---|---|---|
    | Public hostname | e.g. `boat.yourdomain.com` | you choose; point its DNS at Pangolin |
-   | Target host | `172.18.0.22` (your pinned IP) | Step 2 (or the service name `shiplog` if your setup uses Docker DNS) |
+   | Target host | `ship-log-shiplog-1` (the container name) | `docker ps` shows it: `<compose dir>-shiplog-1`. The service alias `shiplog` also resolves |
    | Target port | `8080` | the app's internal HTTP port |
    | Target scheme | `http` (not https) | the app does plain HTTP; Pangolin/Traefik terminates TLS |
    | SSO / auth | **off** | the app gates itself |
@@ -300,7 +289,7 @@ cd valkyrie-log                                     # AGENTS.md/SCHEMA.md/the sk
 | Compose service / network alias | `shiplog` |
 | Container name | `<project>-shiplog-1` (project = the compose dir, e.g. `ship-log`) |
 | App port (internal HTTP) | `8080` — base compose publishes it; the VPS override publishes nothing |
-| Pangolin target (Option B) | `http://<pinned-IP>:8080` (default `172.18.0.22:8080`) |
+| Pangolin target (Option B) | `http://<project>-shiplog-1:8080` (e.g. `http://ship-log-shiplog-1:8080`) — by name, never by IP |
 | External network (Option B) | `pangolin` (must already exist; rename in `docker-compose.vps.yml` if yours differs) |
 | Data volume | `shiplog-data` → `/app/data` (the data-repo clone) |
 | Users volume (back up) | `shiplog-users` → `/app/var` (`users.json`) |
